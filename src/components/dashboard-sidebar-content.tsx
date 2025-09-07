@@ -14,7 +14,7 @@ import {
   Building2,
   Calculator,
   CalendarCheck,
-  ClipboardUser,
+  Clipboard,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -47,7 +47,7 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/sales", label: "Client Management", icon: Building2 },
   ],
   hr: [
-    { href: "/dashboard/hr", label: "Staff Agreements", icon: ClipboardUser },
+    { href: "/dashboard/hr", label: "Staff Agreements", icon: Clipboard },
   ],
   accountant: [
     { href: "/dashboard/accountant", label: "Accounting", icon: Calculator },
