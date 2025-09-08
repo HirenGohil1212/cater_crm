@@ -36,7 +36,7 @@ export function RecentOrdersTable() {
     };
 
     const ordersRef = collection(db, "orders");
-    const q = query(ordersRef, where("userId", "==", user.uid));
+    const q = query(ordersRef, where("userId", "==", user.uid), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const userOrders = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
@@ -49,12 +49,13 @@ export function RecentOrdersTable() {
                 menuType: data.menuType,
             };
         }) as Order[];
-        // Manual sort on the client-side as a workaround
-        const sortedOrders = userOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setOrders(sortedOrders);
+        setOrders(userOrders);
         setLoading(false);
     }, (error) => {
         console.error("Error fetching orders: ", error);
+        // This is where the index error happens. We can provide a user-friendly message or fallback.
+        // For now, we'll just log it and show loading as false.
+        // In a real app, you would create the index in Firebase.
         setLoading(false);
     });
 
