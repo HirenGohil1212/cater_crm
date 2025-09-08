@@ -54,10 +54,9 @@ const staffSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters."),
   address: z.string().min(10, "Address is required."),
   idNumber: z.string().min(10, "Aadhar or PAN number is required."),
-  staffType: z.enum(['individual', 'group-leader', 'outsourced']),
+  staffType: z.enum(['individual', 'group-leader', 'outsourced', 'salaried']),
   bankAccountNumber: z.string().optional(),
   bankIfscCode: z.string().optional(),
-  paymentType: z.enum(['per-event', 'salaried']).optional(),
   perEventCharge: z.coerce.number().optional(),
   monthlySalary: z.coerce.number().optional(),
 });
@@ -97,7 +96,7 @@ function AgreementsTab() {
         defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" },
     });
     
-    const paymentType = form.watch('paymentType');
+    const staffType = form.watch('staffType');
 
 
      useEffect(() => {
@@ -202,13 +201,12 @@ function AgreementsTab() {
                 staffType: values.staffType,
                 bankAccountNumber: values.bankAccountNumber || '',
                 bankIfscCode: values.bankIfscCode || '',
-                paymentType: values.paymentType,
             };
 
-            if (values.paymentType === 'per-event') {
-                staffData.perEventCharge = values.perEventCharge || 0;
-            } else if (values.paymentType === 'salaried') {
+            if (values.staffType === 'salaried') {
                 staffData.monthlySalary = values.monthlySalary || 0;
+            } else {
+                staffData.perEventCharge = values.perEventCharge || 0;
             }
 
             await setDoc(doc(db, "staff", user.uid), staffData);
@@ -358,11 +356,21 @@ function AgreementsTab() {
                                     <SelectItem value="individual">Individual (In-House)</SelectItem>
                                     <SelectItem value="group-leader">Group Leader</SelectItem>
                                     <SelectItem value="outsourced">Outsourced</SelectItem>
+                                    <SelectItem value="salaried">Salaried</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage />
                         </FormItem>
                     )}/>
+                     {staffType === 'salaried' ? (
+                         <FormField control={form.control} name="monthlySalary" render={({ field }) => (
+                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    ) : (
+                         <FormField control={form.control} name="perEventCharge" render={({ field }) => (
+                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
                      <div className="grid grid-cols-2 gap-4">
                         <FormField control={form.control} name="bankAccountNumber" render={({ field }) => (
                             <FormItem><FormLabel>Bank Account Number</FormLabel><FormControl><Input placeholder="1234567890" {...field} /></FormControl><FormMessage /></FormItem>
@@ -371,31 +379,6 @@ function AgreementsTab() {
                             <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
                         )}/>
                      </div>
-                      <FormField control={form.control} name="paymentType" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Payment Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger><SelectValue placeholder="Select a payment type" /></SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="per-event">Per Event</SelectItem>
-                                    <SelectItem value="salaried">Salaried</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}/>
-                    {paymentType === 'per-event' && (
-                         <FormField control={form.control} name="perEventCharge" render={({ field }) => (
-                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                    )}
-                     {paymentType === 'salaried' && (
-                         <FormField control={form.control} name="monthlySalary" render={({ field }) => (
-                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                    )}
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline" onClick={() => setIsAddStaffDialogOpen(false)}>Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -475,8 +458,7 @@ function AgreementsTab() {
                              <div className="space-y-2">
                                 <h4 className="font-semibold text-base">3. Compensation</h4>
                                  <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
-                                    <li><strong>Payment Type:</strong> <span className="text-foreground">{selectedStaff.paymentType === 'salaried' ? 'Salaried' : 'Per Event'}</span></li>
-                                     {selectedStaff.paymentType === 'salaried' ? (
+                                     {selectedStaff.staffType === 'salaried' ? (
                                         <li><strong>Monthly Salary:</strong> <span className="text-foreground">₹{selectedStaff.monthlySalary?.toLocaleString() || 'N/A'}</span></li>
                                      ) : (
                                         <li><strong>Per Event Charge:</strong> <span className="text-foreground">₹{selectedStaff.perEventCharge?.toLocaleString() || 'N/A'}</span></li>
@@ -553,5 +535,3 @@ export default function HRDashboardPage() {
         </Tabs>
     );
 }
-
-    

@@ -60,10 +60,9 @@ const staffBaseSchema = z.object({
   role: z.enum(['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin']),
   address: z.string().min(10, "Address is required."),
   idNumber: z.string().min(10, "Aadhar or PAN number is required."),
-  staffType: z.enum(['individual', 'group-leader', 'outsourced']),
+  staffType: z.enum(['individual', 'group-leader', 'outsourced', 'salaried']),
   bankAccountNumber: z.string().optional(),
   bankIfscCode: z.string().optional(),
-  paymentType: z.enum(['per-event', 'salaried']).optional(),
   perEventCharge: z.coerce.number().optional(),
   monthlySalary: z.coerce.number().optional(),
 });
@@ -85,10 +84,9 @@ export type Staff = {
   role: 'waiter-steward' | 'supervisor' | 'pro' | 'senior-pro' | 'captain-butler' | 'operational-manager' | 'sales' | 'hr' | 'accountant' | 'admin';
   address: string;
   idNumber: string;
-  staffType: 'individual' | 'group-leader' | 'outsourced';
+  staffType: 'individual' | 'group-leader' | 'outsourced' | 'salaried';
   bankAccountNumber?: string;
   bankIfscCode?: string;
-  paymentType?: 'per-event' | 'salaried';
   perEventCharge?: number;
   monthlySalary?: number;
 };
@@ -119,8 +117,8 @@ export default function AdminStaffPage() {
         resolver: zodResolver(editStaffSchema),
     });
 
-    const paymentType = form.watch('paymentType');
-    const editPaymentType = editForm.watch('paymentType');
+    const staffType = form.watch('staffType');
+    const editStaffType = editForm.watch('staffType');
 
     useEffect(() => {
         const q = query(collection(db, "staff"), orderBy("name"));
@@ -182,15 +180,14 @@ export default function AdminStaffPage() {
                 staffType: values.staffType,
                 bankAccountNumber: values.bankAccountNumber,
                 bankIfscCode: values.bankIfscCode,
-                paymentType: values.paymentType,
             };
 
-            if (values.paymentType === 'per-event') {
-                dataToUpdate.perEventCharge = values.perEventCharge || 0;
-                dataToUpdate.monthlySalary = 0;
-            } else if (values.paymentType === 'salaried') {
+            if (values.staffType === 'salaried') {
                 dataToUpdate.monthlySalary = values.monthlySalary || 0;
                 dataToUpdate.perEventCharge = 0;
+            } else {
+                dataToUpdate.perEventCharge = values.perEventCharge || 0;
+                dataToUpdate.monthlySalary = 0;
             }
 
             await updateDoc(staffDocRef, dataToUpdate);
@@ -275,13 +272,12 @@ export default function AdminStaffPage() {
                 staffType: values.staffType,
                 bankAccountNumber: values.bankAccountNumber || '',
                 bankIfscCode: values.bankIfscCode || '',
-                paymentType: values.paymentType,
             };
 
-             if (values.paymentType === 'per-event') {
-                staffData.perEventCharge = values.perEventCharge || 0;
-            } else if (values.paymentType === 'salaried') {
+             if (values.staffType === 'salaried') {
                 staffData.monthlySalary = values.monthlySalary || 0;
+            } else {
+                staffData.perEventCharge = values.perEventCharge || 0;
             }
 
 
@@ -453,7 +449,7 @@ export default function AdminStaffPage() {
                             </FormItem>
                         )}/>
                     </div>
-                     <FormField control={form.control} name="staffType" render={({ field }) => (
+                    <FormField control={form.control} name="staffType" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Staff Type</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -464,11 +460,21 @@ export default function AdminStaffPage() {
                                     <SelectItem value="individual">Individual (In-House)</SelectItem>
                                     <SelectItem value="group-leader">Group Leader</SelectItem>
                                     <SelectItem value="outsourced">Outsourced</SelectItem>
+                                    <SelectItem value="salaried">Salaried</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage />
                         </FormItem>
                     )}/>
+                     {staffType === 'salaried' ? (
+                         <FormField control={form.control} name="monthlySalary" render={({ field }) => (
+                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    ) : (
+                         <FormField control={form.control} name="perEventCharge" render={({ field }) => (
+                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
                      <div className="grid grid-cols-2 gap-4">
                         <FormField control={form.control} name="bankAccountNumber" render={({ field }) => (
                             <FormItem><FormLabel>Bank Account Number</FormLabel><FormControl><Input placeholder="1234567890" {...field} /></FormControl><FormMessage /></FormItem>
@@ -477,31 +483,6 @@ export default function AdminStaffPage() {
                             <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
                         )}/>
                      </div>
-                      <FormField control={form.control} name="paymentType" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Payment Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger><SelectValue placeholder="Select a payment type" /></SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="per-event">Per Event</SelectItem>
-                                    <SelectItem value="salaried">Salaried</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}/>
-                    {paymentType === 'per-event' && (
-                         <FormField control={form.control} name="perEventCharge" render={({ field }) => (
-                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                    )}
-                     {paymentType === 'salaried' && (
-                         <FormField control={form.control} name="monthlySalary" render={({ field }) => (
-                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                    )}
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -591,12 +572,22 @@ export default function AdminStaffPage() {
                                         <SelectItem value="individual">Individual (In-House)</SelectItem>
                                         <SelectItem value="group-leader">Group Leader</SelectItem>
                                         <SelectItem value="outsourced">Outsourced</SelectItem>
+                                        <SelectItem value="salaried">Salaried</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
                             </FormItem>
                         )}/>
                      </div>
+                     {editStaffType === 'salaried' ? (
+                         <FormField control={editForm.control} name="monthlySalary" render={({ field }) => (
+                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    ) : (
+                         <FormField control={editForm.control} name="perEventCharge" render={({ field }) => (
+                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
                       <div className="grid grid-cols-2 gap-4">
                         <FormField control={editForm.control} name="bankAccountNumber" render={({ field }) => (
                             <FormItem><FormLabel>Bank Account Number</FormLabel><FormControl><Input placeholder="1234567890" {...field} /></FormControl><FormMessage /></FormItem>
@@ -605,31 +596,6 @@ export default function AdminStaffPage() {
                             <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
                         )}/>
                      </div>
-                     <FormField control={editForm.control} name="paymentType" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Payment Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger><SelectValue placeholder="Select a payment type" /></SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="per-event">Per Event</SelectItem>
-                                    <SelectItem value="salaried">Salaried</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}/>
-                    {editPaymentType === 'per-event' && (
-                         <FormField control={editForm.control} name="perEventCharge" render={({ field }) => (
-                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                    )}
-                     {editPaymentType === 'salaried' && (
-                         <FormField control={editForm.control} name="monthlySalary" render={({ field }) => (
-                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                    )}
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -679,5 +645,3 @@ export default function AdminStaffPage() {
         </Card>
     );
 }
-
-    
