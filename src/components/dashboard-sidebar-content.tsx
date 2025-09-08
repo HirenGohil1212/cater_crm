@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -29,6 +30,8 @@ import {
   DollarSign,
   BarChart,
   User,
+  FileText,
+  LifeBuoy,
 } from "lucide-react";
 import { capitalize } from "@/lib/utils";
 
@@ -40,6 +43,8 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
   consumer: [
     { href: "/dashboard/consumer", label: "Dashboard", icon: LayoutDashboard },
     { href: "/dashboard/consumer/orders", label: "My Orders", icon: ShoppingCart },
+    { href: "/dashboard/consumer/billing", label: "Billing", icon: FileText },
+    { href: "/dashboard/consumer/support", label: "Support", icon: LifeBuoy },
   ],
   waiter: [
     { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
