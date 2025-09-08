@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useCallback } from "react";
 import { suggestWaiters } from "@/ai/flows/suggest-waiters-flow";
 import debounce from 'lodash.debounce';
+import { auth, db } from "@/lib/firebase";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 const orderFormSchema = z.object({
   date: z.date({
@@ -44,6 +47,7 @@ export function OrderForm() {
   const { toast } = useToast();
   const [waiterSuggestion, setWaiterSuggestion] = useState<{ count: number, reasoning: string } | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof orderFormSchema>>({
     resolver: zodResolver(orderFormSchema),
@@ -76,14 +80,44 @@ export function OrderForm() {
     []
   );
 
-  function onSubmit(values: z.infer<typeof orderFormSchema>) {
-    console.log(values);
-    toast({
-      title: "Order Submitted!",
-      description: "Your order has been placed. We will be in touch shortly.",
-    });
-    form.reset();
-    setWaiterSuggestion(null);
+  async function onSubmit(values: z.infer<typeof orderFormSchema>) {
+    const user = auth.currentUser;
+    if (!user) {
+        toast({
+            variant: "destructive",
+            title: "Not Authenticated",
+            description: "You must be logged in to place an order.",
+        });
+        return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+        await addDoc(collection(db, "orders"), {
+            ...values,
+            date: values.date.toISOString().split('T')[0], // Store date as YYYY-MM-DD string
+            userId: user.uid,
+            status: "Pending",
+            createdAt: serverTimestamp(),
+            waiterSuggestion: waiterSuggestion?.count || 0,
+        });
+
+        toast({
+            title: "Order Submitted!",
+            description: "Your order has been placed. We will be in touch shortly.",
+        });
+        form.reset({ attendees: 0, time: '19:00' });
+        setWaiterSuggestion(null);
+    } catch (error) {
+        console.error("Error placing order:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "There was a problem placing your order. Please try again.",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   return (
@@ -214,9 +248,9 @@ export function OrderForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+        <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={isSubmitting}>
             <Utensils className="mr-2 h-4 w-4" />
-            Place Order
+            {isSubmitting ? 'Placing Order...' : 'Place Order'}
         </Button>
       </form>
     </Form>

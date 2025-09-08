@@ -1,3 +1,6 @@
+
+"use client";
+
 import {
   Table,
   TableBody,
@@ -7,51 +10,82 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+import { auth, db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
+import { Skeleton } from "./ui/skeleton";
 
-const orders = [
-  {
-    id: "ORD001",
-    date: "2024-06-15",
-    attendees: 50,
-    status: "Confirmed",
-    menu: "Veg",
-  },
-  {
-    id: "ORD002",
-    date: "2024-06-22",
-    attendees: 120,
-    status: "Confirmed",
-    menu: "Non-Veg",
-  },
-  {
-    id: "ORD003",
-    date: "2024-07-01",
-    attendees: 75,
-    status: "Pending",
-    menu: "Veg",
-  },
-  {
-    id: "ORD004",
-    date: "2024-05-30",
-    attendees: 30,
-    status: "Completed",
-    menu: "Non-Veg",
-  },
-    {
-    id: "ORD005",
-    date: "2024-05-15",
-    attendees: 85,
-    status: "Completed",
-    menu: "Veg",
-  },
-];
+type Order = {
+  id: string;
+  date: string;
+  attendees: number;
+  status: "Pending" | "Confirmed" | "Completed" | "Cancelled";
+  menuType: "veg" | "non-veg";
+};
+
 
 export function RecentOrdersTable() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const user = auth.currentUser;
+
+  useEffect(() => {
+    if (!user) {
+        setLoading(false);
+        return;
+    };
+
+    const ordersRef = collection(db, "orders");
+    const q = query(ordersRef, where("userId", "==", user.uid), orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const userOrders = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                date: data.date,
+                attendees: data.attendees,
+                status: data.status,
+                menuType: data.menuType,
+            };
+        }) as Order[];
+        setOrders(userOrders);
+        setLoading(false);
+    }, (error) => {
+        console.error("Error fetching orders: ", error);
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  if (loading) {
+    return (
+        <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex justify-between items-center p-2">
+                    <Skeleton className="h-5 w-1/4" />
+                    <Skeleton className="h-5 w-1/4" />
+                    <Skeleton className="h-5 w-1/4" />
+                    <Skeleton className="h-5 w-1/6" />
+                </div>
+            ))}
+        </div>
+    )
+  }
+  
+  if (!user) {
+    return <p className="text-center text-muted-foreground">Please log in to see your orders.</p>
+  }
+  
+  if (orders.length === 0) {
+    return <p className="text-center text-muted-foreground">You haven't placed any orders yet.</p>
+  }
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Order ID</TableHead>
           <TableHead>Event Date</TableHead>
           <TableHead>Attendees</TableHead>
           <TableHead>Menu</TableHead>
@@ -61,11 +95,12 @@ export function RecentOrdersTable() {
       <TableBody>
         {orders.map((order) => (
           <TableRow key={order.id}>
-            <TableCell className="font-medium">{order.id}</TableCell>
-            <TableCell>{order.date}</TableCell>
+            <TableCell className="font-medium">{order.date}</TableCell>
             <TableCell>{order.attendees}</TableCell>
             <TableCell>
-              <Badge variant={order.menu === 'Veg' ? 'secondary' : 'outline'}>{order.menu}</Badge>
+              <Badge variant={order.menuType === 'veg' ? 'secondary' : 'outline'}>
+                {order.menuType === 'veg' ? 'Veg' : 'Non-Veg'}
+                </Badge>
             </TableCell>
             <TableCell className="text-right">
               <Badge
