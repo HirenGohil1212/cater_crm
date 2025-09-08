@@ -52,22 +52,21 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { PlusCircle, Edit, Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 
-const staffSchema = z.object({
+const staffBaseSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
   role: z.enum(['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin']),
   password: z.string().min(6, "Password must be at least 6 characters.").optional(),
-}).refine(data => {
-    // Make password required only when creating a new staff member (editingStaff is null)
-    if (!data.password) return false;
-    return true;
-}, {
+});
+
+const staffSchema = staffBaseSchema.refine(data => !!data.password, {
     message: "Password is required for new staff members.",
     path: ["password"],
 });
 
-const editStaffSchema = staffSchema.omit({ password: true }).extend({
-    password: z.string().min(6, "Password must be at least 6 characters.").optional(),
+
+const editStaffSchema = staffBaseSchema.omit({ password: true }).extend({
+    password: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
 });
 
 
@@ -86,8 +85,8 @@ export default function AdminStaffPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
-    const form = useForm<z.infer<typeof staffSchema>>({
-        resolver: zodResolver(staffSchema),
+    const form = useForm<z.infer<typeof staffBaseSchema>>({
+        resolver: zodResolver(staffBaseSchema),
         defaultValues: { name: "", phone: "", role: "waiter-steward" },
     });
 
@@ -103,15 +102,13 @@ export default function AdminStaffPage() {
     
     useEffect(() => {
         if (isDialogOpen) {
-            const resolver = editingStaff ? zodResolver(editStaffSchema) : zodResolver(staffSchema);
+            const currentSchema = editingStaff ? editStaffSchema : staffSchema;
+            // @ts-ignore
+            form.resolver = zodResolver(currentSchema);
             form.reset(
                 editingStaff 
-                ? { ...editingStaff, phone: editingStaff.phone.startsWith('+91') ? editingStaff.phone.substring(3) : editingStaff.phone } 
-                : { name: "", phone: "", role: "waiter-steward", password: "" },
-                {
-                    // @ts-ignore
-                    resolver,
-                }
+                ? { ...editingStaff, phone: editingStaff.phone.startsWith('+91') ? editingStaff.phone.substring(3) : editingStaff.phone, password: '' } 
+                : { name: "", phone: "", role: "waiter-steward", password: "" }
             );
         }
     }, [isDialogOpen, editingStaff, form]);
@@ -127,7 +124,7 @@ export default function AdminStaffPage() {
         setIsDialogOpen(true);
     }
 
-    async function onSubmit(values: z.infer<typeof staffSchema>) {
+    async function onSubmit(values: z.infer<typeof staffBaseSchema>) {
         setIsSubmitting(true);
         const fullPhoneNumber = `+91${values.phone}`;
         const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
