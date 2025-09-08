@@ -1,20 +1,16 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield } from "lucide-react";
+import { AllOrdersTableManager } from "@/components/all-orders-table-manager";
 
 export default function OperationalManagerDashboardPage() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Operational Manager Dashboard</CardTitle>
-                <CardDescription>Oversee on-site event execution and logistics.</CardDescription>
+                <CardTitle>Event Staffing Management</CardTitle>
+                <CardDescription>Review all incoming event orders and assign staff accordingly.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 border-2 border-dashed rounded-lg bg-muted/30">
-                    <Shield className="h-16 w-16 mb-4" />
-                    <h3 className="text-xl font-semibold">Operational Manager Module</h3>
-                    <p>Feature coming soon.</p>
-                </div>
+                <AllOrdersTableManager />
             </CardContent>
         </Card>
     );

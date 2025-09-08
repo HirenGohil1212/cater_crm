@@ -62,7 +62,7 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/accountant", label: "Accounting", icon: Calculator },
   ],
   'operational-manager': [
-      { href: "/dashboard/operational-manager", label: "Operations", icon: Shield },
+      { href: "/dashboard/operational-manager", label: "Event Staffing", icon: Shield },
   ],
   admin: [
     { href: "/dashboard/admin", label: "Admin Dashboard", icon: Shield },
@@ -102,7 +102,7 @@ export function DashboardSidebarContent({ role }: DashboardSidebarContentProps) 
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} passHref>
                 <SidebarMenuButton
-                  isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')}
+                  isActive={pathname.startsWith(item.href)}
                   tooltip={item.label}
                 >
                   <item.icon />
