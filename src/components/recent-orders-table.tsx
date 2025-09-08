@@ -36,7 +36,7 @@ export function RecentOrdersTable() {
     };
 
     const ordersRef = collection(db, "orders");
-    const q = query(ordersRef, where("userId", "==", user.uid), orderBy("createdAt", "desc"));
+    const q = query(ordersRef, where("userId", "==", user.uid));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const userOrders = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
@@ -49,7 +49,9 @@ export function RecentOrdersTable() {
                 menuType: data.menuType,
             };
         }) as Order[];
-        setOrders(userOrders);
+        // Manual sort on the client-side as a workaround
+        const sortedOrders = userOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setOrders(sortedOrders);
         setLoading(false);
     }, (error) => {
         console.error("Error fetching orders: ", error);
