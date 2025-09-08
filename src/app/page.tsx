@@ -1,6 +1,7 @@
 import { LoginForm } from '@/components/login-form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { UtensilsCrossed } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -18,6 +19,12 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <LoginForm />
+            <div className="mt-4 text-center text-sm">
+                Don&apos;t have an account?{' '}
+                <Link href="/signup" className="underline text-primary">
+                    Sign up
+                </Link>
+            </div>
           </CardContent>
         </Card>
       </div>

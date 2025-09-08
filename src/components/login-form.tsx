@@ -23,6 +23,9 @@ import {
 import { Input } from './ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Building2, Calculator, Clipboard, Shield, TrendingUp, User, UserCog } from 'lucide-react';
+import { auth, DUMMY_EMAIL_DOMAIN } from '@/lib/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import Link from 'next/link';
 
 const roles = [
   { value: 'consumer', label: 'Client / Consumer', icon: Building2 },
@@ -35,7 +38,7 @@ const roles = [
 ];
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email." }),
+  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number."),
   password: z.string().min(1, { message: "Password is required." }),
   role: z.string({ required_error: "Please select a role." }),
 });
@@ -47,32 +50,43 @@ export function LoginForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      phone: "",
       password: "",
       role: "consumer",
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    toast({
-      title: "Login Successful",
-      description: `Welcome! Redirecting to the ${values.role} dashboard.`,
-    });
-    
-    router.push(`/dashboard/${values.role}`);
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    const dummyEmail = `${values.phone}@${DUMMY_EMAIL_DOMAIN}`;
+    try {
+        await signInWithEmailAndPassword(auth, dummyEmail, values.password);
+        toast({
+            title: "Login Successful",
+            description: `Welcome! Redirecting to the ${values.role} dashboard.`,
+        });
+        router.push(`/dashboard/${values.role}`);
+    } catch (error: any) {
+        console.error("Login failed:", error);
+        toast({
+            variant: "destructive",
+            title: "Login Failed",
+            description: error.message || "An unknown error occurred.",
+        });
+    }
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <div id="recaptcha-container"></div>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
-          name="email"
+          name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>Phone Number</FormLabel>
               <FormControl>
-                <Input placeholder="name@example.com" {...field} />
+                <Input placeholder="+19876543210" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -83,7 +97,14 @@ export function LoginForm() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Password</FormLabel>
+                <div className="flex items-center justify-between">
+                    <FormLabel>Password</FormLabel>
+                    <Link href="/forgot-password" passHref>
+                        <span className="text-sm text-primary hover:underline cursor-pointer">
+                            Forgot password?
+                        </span>
+                    </Link>
+                </div>
               <FormControl>
                 <Input type="password" placeholder="••••••••" {...field} />
               </FormControl>
@@ -118,8 +139,8 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-          Login
+        <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? 'Logging in...' : 'Login'}
         </Button>
       </form>
     </Form>
