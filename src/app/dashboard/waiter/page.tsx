@@ -1,8 +1,7 @@
-
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Calendar as CalendarIcon, CheckSquare, FileText, Upload, UserCheck, CalendarCheck, FileClock } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, FileText, Upload, UserCheck, CalendarCheck, FileClock, MapPin } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import type { DateRange } from "react-day-picker";
 import { Switch } from '@/components/ui/switch';
@@ -11,7 +10,18 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { auth, db } from '@/lib/firebase';
+import { collection, onSnapshot, query, where, DocumentData } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
 
+type AssignedEvent = {
+    id: string;
+    date: string;
+    venue: string;
+    clientName: string;
+    status: string;
+}
 
 function AvailabilityTab() {
     const [dates, setDates] = useState<DateRange | undefined>();
@@ -47,6 +57,9 @@ function AvailabilityTab() {
                         selected={dates}
                         onSelect={setDates}
                         className="rounded-md border"
+                        disabled={(date) =>
+                            date < new Date(new Date().setDate(new Date().getDate() - 1))
+                          }
                     />
                 </div>
                 <div className="space-y-6">
@@ -71,6 +84,91 @@ function AvailabilityTab() {
         </Card>
     );
 }
+
+function UpcomingEventsTab() {
+    const [events, setEvents] = useState<AssignedEvent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const user = auth.currentUser;
+
+    useEffect(() => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+
+        // This is a placeholder for fetching assigned events.
+        // In a real app, you would have a collection like 'eventAssignments'
+        // that links users (staff) to orders (events).
+        // For now, we will simulate this with placeholder data.
+        const mockEvents: AssignedEvent[] = [
+            { id: '1', date: '2024-08-15', venue: 'Grand Hyatt Ballroom', clientName: 'Alice Johnson', status: 'Confirmed' },
+            { id: '2', date: '2024-08-22', venue: 'Marriott Convention Center', clientName: 'Bob Williams', status: 'Confirmed' }
+        ];
+        setEvents(mockEvents);
+        setLoading(false);
+
+    }, [user]);
+
+    if (loading) {
+        return (
+            <Card>
+                 <CardHeader>
+                    <CardTitle>Upcoming Events</CardTitle>
+                    <CardDescription>Here are your assignments for upcoming events.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (events.length === 0) {
+        return (
+            <Card>
+                 <CardHeader>
+                    <CardTitle>Upcoming Events</CardTitle>
+                    <CardDescription>Here are your assignments for upcoming events.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 border-2 border-dashed rounded-lg bg-muted/30">
+                        <FileClock className="h-16 w-16 mb-4" />
+                        <h3 className="text-xl font-semibold">No Upcoming Events</h3>
+                        <p>You have not been assigned to any events yet.</p>
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Upcoming Events</CardTitle>
+                <CardDescription>Here are your assignments for upcoming events.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {events.map(event => (
+                    <Card key={event.id} className="grid grid-cols-1 md:grid-cols-4 items-center p-4 gap-4">
+                        <div className="col-span-1 md:col-span-3">
+                            <h4 className="font-semibold">{format(new Date(event.date), 'PPP')} - {event.clientName}</h4>
+                            <p className="text-sm text-muted-foreground">{event.venue}</p>
+                        </div>
+                        <div className="col-span-1 md:col-span-1 flex justify-end">
+                            <Link href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`} target="_blank" rel="noopener noreferrer">
+                                <Button variant="outline">
+                                    <MapPin className="mr-2 h-4 w-4" />
+                                    View Map
+                                </Button>
+                            </Link>
+                        </div>
+                    </Card>
+                ))}
+            </CardContent>
+        </Card>
+    );
+}
+
 
 function PlaceholderTab({ title, icon: Icon }: { title: string, icon: React.ElementType }) {
     return (
@@ -102,7 +200,7 @@ export default function WaiterDashboardPage() {
                 <AvailabilityTab />
             </TabsContent>
             <TabsContent value="events" className="mt-4">
-                <PlaceholderTab title="Upcoming Events" icon={FileClock} />
+                <UpcomingEventsTab />
             </TabsContent>
             <TabsContent value="ledger" className="mt-4">
                 <PlaceholderTab title="Ledger & Penalties" icon={FileText} />
