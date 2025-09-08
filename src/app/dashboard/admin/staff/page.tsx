@@ -48,7 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
 import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, orderBy, setDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword, reauthenticateWithCredential, EmailAuthProvider, deleteUser } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { PlusCircle, Edit, Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -56,7 +56,20 @@ const staffSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
   role: z.enum(['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin']),
+  password: z.string().min(6, "Password must be at least 6 characters.").optional(),
+}).refine(data => {
+    // Make password required only when creating a new staff member (editingStaff is null)
+    if (!data.password) return false;
+    return true;
+}, {
+    message: "Password is required for new staff members.",
+    path: ["password"],
 });
+
+const editStaffSchema = staffSchema.omit({ password: true }).extend({
+    password: z.string().min(6, "Password must be at least 6 characters.").optional(),
+});
+
 
 export type Staff = {
   id: string;
@@ -87,18 +100,30 @@ export default function AdminStaffPage() {
         });
         return () => unsubscribe();
     }, []);
+    
+    useEffect(() => {
+        if (isDialogOpen) {
+            const resolver = editingStaff ? zodResolver(editStaffSchema) : zodResolver(staffSchema);
+            form.reset(
+                editingStaff 
+                ? { ...editingStaff, phone: editingStaff.phone.startsWith('+91') ? editingStaff.phone.substring(3) : editingStaff.phone } 
+                : { name: "", phone: "", role: "waiter-steward", password: "" },
+                {
+                    // @ts-ignore
+                    resolver,
+                }
+            );
+        }
+    }, [isDialogOpen, editingStaff, form]);
+
 
     const openDialogForEdit = (staffMember: Staff) => {
         setEditingStaff(staffMember);
-        // Phone number stored with +91, but form expects 10 digits
-        const phoneWithoutCountryCode = staffMember.phone.startsWith('+91') ? staffMember.phone.substring(3) : staffMember.phone;
-        form.reset({ ...staffMember, phone: phoneWithoutCountryCode });
         setIsDialogOpen(true);
     }
     
     const openDialogForNew = () => {
         setEditingStaff(null);
-        form.reset({ name: "", phone: "", role: "waiter-steward" });
         setIsDialogOpen(true);
     }
 
@@ -106,50 +131,44 @@ export default function AdminStaffPage() {
         setIsSubmitting(true);
         const fullPhoneNumber = `+91${values.phone}`;
         const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
-        const defaultPassword = 'password123'; // Admin should communicate this securely
 
         try {
             if (editingStaff) {
+                 // Update logic - password is not changed here, but other details are.
                 const staffDocRef = doc(db, "staff", editingStaff.id);
                 await updateDoc(staffDocRef, {
                     name: values.name,
-                    phone: fullPhoneNumber,
                     role: values.role
                 });
                 const userDocRef = doc(db, "users", editingStaff.id);
                 await updateDoc(userDocRef, {
                     name: values.name,
-                    phone: fullPhoneNumber,
                     role: values.role
                 });
                 toast({ title: "Staff Updated", description: `${values.name}'s details have been updated.` });
             } else {
-                const tempAuthApp = initializeApp({
-                    apiKey: auth.config.apiKey,
-                    authDomain: auth.config.authDomain,
-                }, `temp-staff-creation-${Date.now()}`);
-                const tempAuth = getAuth(tempAuthApp);
-
-                const userCredential = await createUserWithEmailAndPassword(tempAuth, dummyEmail, defaultPassword);
+                // Create logic
+                if (!values.password) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Password is required to create a new staff member.' });
+                    setIsSubmitting(false);
+                    return;
+                }
+                const userCredential = await createUserWithEmailAndPassword(auth, dummyEmail, values.password);
                 const user = userCredential.user;
-
-                await setDoc(doc(db, "staff", user.uid), {
+                
+                const userData = {
                     uid: user.uid,
                     name: values.name,
                     phone: fullPhoneNumber,
                     role: values.role,
-                });
-                 await setDoc(doc(db, "users", user.uid), {
-                    uid: user.uid,
-                    name: values.name,
-                    phone: fullPhoneNumber,
-                    role: values.role,
-                });
+                };
 
+                await setDoc(doc(db, "staff", user.uid), userData);
+                await setDoc(doc(db, "users", user.uid), userData);
 
                 toast({
                   title: "Staff Added",
-                  description: `${values.name} has been added. They can log in with their phone and the default password.`,
+                  description: `${values.name} has been added and can now log in.`,
                 });
             }
             setIsDialogOpen(false);
@@ -280,6 +299,11 @@ export default function AdminStaffPage() {
                                             <FormMessage />
                                         </FormItem>
                                     )}/>
+                                    {!editingStaff && (
+                                        <FormField control={form.control} name="password" render={({ field }) => (
+                                            <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
+                                        )}/>
+                                    )}
                                     <FormField control={form.control} name="role" render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Role</FormLabel>
