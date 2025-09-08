@@ -47,16 +47,16 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/consumer/support", label: "Support", icon: LifeBuoy },
   ],
   'waiter-steward': [
-    { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
+    { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
   ],
   'pro': [
-    { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
+    { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
   ],
   'senior-pro': [
-    { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
+    { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
   ],
   'captain-butler': [
-    { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
+    { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
   ],
   supervisor: [
     { href: "/dashboard/supervisor", label: "Staff Location", icon: MapPin },

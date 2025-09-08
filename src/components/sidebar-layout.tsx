@@ -18,8 +18,8 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
   // segments[0] is 'dashboard', segments[1] is the role
   const role = segments.length > 1 && segments[0] === 'dashboard' ? segments[1] : 'consumer';
 
-  // Handle cases where the waiter role has sub-roles in the URL
-  const determinedRole = role === 'waiter' ? 'waiter-steward' : role;
+  const waiterRoles = ['waiter-steward', 'pro', 'senior-pro', 'captain-butler'];
+  const determinedRole = waiterRoles.includes(role) ? 'waiter-steward' : role;
 
 
   return (
