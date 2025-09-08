@@ -23,14 +23,12 @@ const formSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters."),
     phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
     password: z.string().min(6, "Password must be at least 6 characters."),
-    companyName: z.string().min(2, "Company name is required."),
-    gstNumber: z.string().optional(),
     terms: z.boolean().refine(val => val === true, { message: "You must accept the terms and conditions." }),
 });
 
 type ConfirmationResult = any;
 
-export default function SignupPage() {
+export default function SignupStaffPage() {
     const router = useRouter();
     const { toast } = useToast();
     const [step, setStep] = useState<'details' | 'otp'>('details');
@@ -39,7 +37,7 @@ export default function SignupPage() {
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
-        defaultValues: { name: "", phone: "", password: "", companyName: "", gstNumber: "", terms: false },
+        defaultValues: { name: "", phone: "", password: "", terms: false },
     });
 
     const setupRecaptcha = () => {
@@ -86,7 +84,7 @@ export default function SignupPage() {
     async function onOtpSubmit(otp: string) {
         if (!confirmationResult) return;
         setIsSubmitting(true);
-        const { name, phone, password, companyName, gstNumber } = form.getValues();
+        const { name, phone, password } = form.getValues();
         const fullPhoneNumber = `+91${phone}`;
         const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
 
@@ -97,17 +95,19 @@ export default function SignupPage() {
             const emailCredential = EmailAuthProvider.credential(dummyEmail, password);
             await linkWithCredential(user, emailCredential);
 
-            await setDoc(doc(db, "users", user.uid), {
+            // For staff, we might want to save to a 'staff' collection and a 'users' collection
+            const userDoc = {
                 uid: user.uid,
                 name,
                 phone: fullPhoneNumber,
-                companyName,
-                gstNumber,
-                role: 'consumer', // Default role for client signup
+                role: 'waiter', // Default role for staff signup
                 createdAt: new Date(),
-            });
+            };
+            await setDoc(doc(db, "users", user.uid), userDoc);
+            await setDoc(doc(db, "staff", user.uid), userDoc);
 
-            toast({ title: "Signup Successful", description: "Your account has been created. Please log in." });
+
+            toast({ title: "Signup Successful", description: "Your staff account has been created. Please log in." });
             router.push('/');
 
         } catch (error: any) {
@@ -132,10 +132,10 @@ export default function SignupPage() {
                             <UtensilsCrossed className="h-8 w-8 text-primary" />
                         </div>
                         <CardTitle className="text-3xl font-bold tracking-tight text-primary">
-                            Create a Client Account
+                            Create a Staff Account
                         </CardTitle>
                         <CardDescription>
-                            {step === 'details' ? 'Enter your company details to get started.' : 'Enter the OTP sent to your phone.'}
+                            {step === 'details' ? 'Enter your details to get started.' : 'Enter the OTP sent to your phone.'}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -144,12 +144,6 @@ export default function SignupPage() {
                                 <form onSubmit={form.handleSubmit(onDetailsSubmit)} className="space-y-4">
                                     <FormField control={form.control} name="name" render={({ field }) => (
                                         <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
-                                    )} />
-                                    <FormField control={form.control} name="companyName" render={({ field }) => (
-                                        <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input placeholder="Acme Inc." {...field} /></FormControl><FormMessage /></FormItem>
-                                    )} />
-                                     <FormField control={form.control} name="gstNumber" render={({ field }) => (
-                                        <FormItem><FormLabel>GST Number (Optional)</FormLabel><FormControl><Input placeholder="22AAAAA0000A1Z5" {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
                                     <FormField control={form.control} name="phone" render={({ field }) => (
                                         <FormItem>

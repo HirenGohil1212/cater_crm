@@ -1,3 +1,4 @@
+
 import { LoginForm } from '@/components/login-form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { UtensilsCrossed } from 'lucide-react';
@@ -20,9 +21,15 @@ export default function Home() {
           <CardContent>
             <LoginForm />
             <div className="mt-4 text-center text-sm">
-                Don&apos;t have an account?{' '}
+                Don&apos;t have a client account?{' '}
                 <Link href="/signup" className="underline text-primary">
                     Sign up
+                </Link>
+            </div>
+             <div className="mt-2 text-center text-sm">
+                Staff member?{' '}
+                <Link href="/signup_staff" className="underline text-primary">
+                    Register here
                 </Link>
             </div>
           </CardContent>
