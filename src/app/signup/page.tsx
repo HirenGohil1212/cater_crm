@@ -16,11 +16,13 @@ import { RecaptchaVerifier, signInWithPhoneNumber, EmailAuthProvider, linkWithCr
 import { doc, setDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { UtensilsCrossed } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const formSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters."),
     phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number with country code."),
     password: z.string().min(6, "Password must be at least 6 characters."),
+    terms: z.boolean().refine(val => val === true, { message: "You must accept the terms and conditions." }),
 });
 
 type ConfirmationResult = any;
@@ -34,7 +36,7 @@ export default function SignupPage() {
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
-        defaultValues: { name: "", phone: "", password: "" },
+        defaultValues: { name: "", phone: "", password: "", terms: false },
     });
 
     const setupRecaptcha = () => {
@@ -142,6 +144,26 @@ export default function SignupPage() {
                                     <FormField control={form.control} name="password" render={({ field }) => (
                                         <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
+                                    <FormField
+                                        control={form.control}
+                                        name="terms"
+                                        render={({ field }) => (
+                                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                    />
+                                                </FormControl>
+                                                <div className="space-y-1 leading-none">
+                                                    <FormLabel>
+                                                        Accept terms and conditions
+                                                    </FormLabel>
+                                                    <FormMessage />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
                                     <Button type="submit" className="w-full" disabled={isSubmitting}>
                                         {isSubmitting ? 'Sending OTP...' : 'Send OTP'}
                                     </Button>
