@@ -35,7 +35,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, query, orderBy, DocumentData } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, query, orderBy, DocumentData, getDoc } from "firebase/firestore";
 import { Edit, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { capitalize } from '@/lib/utils';
@@ -82,10 +82,10 @@ export default function AdminUsersPage() {
     }, []);
     
     useEffect(() => {
-        if (editingUser) {
+        if (isDialogOpen && editingUser) {
             form.reset({ role: editingUser.role });
         }
-    }, [editingUser, form]);
+    }, [isDialogOpen, editingUser, form]);
 
     const openDialogForEdit = (user: User) => {
         setEditingUser(user);
@@ -105,7 +105,8 @@ export default function AdminUsersPage() {
             if(staffRoles.includes(values.role)) {
                 const staffDocRef = doc(db, "staff", editingUser.id);
                 // Check if doc exists before updating
-                if ((await doc(staffDocRef).get()).exists()) {
+                const docSnap = await getDoc(staffDocRef);
+                if (docSnap.exists()) {
                     await updateDoc(staffDocRef, { role: values.role });
                 }
             }
@@ -176,7 +177,12 @@ export default function AdminUsersPage() {
                 </Table>
             </CardContent>
 
-             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+             <Dialog open={isDialogOpen} onOpenChange={(isOpen) => {
+                setIsDialogOpen(isOpen);
+                if (!isOpen) {
+                    setEditingUser(null);
+                }
+             }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edit Role for {editingUser?.name}</DialogTitle>
