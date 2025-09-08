@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -22,6 +23,7 @@ type Order = {
   menuType: "veg" | "non-veg";
   userId: string;
   userName?: string;
+  createdAt: any;
 };
 
 async function getUserName(userId: string): Promise<string> {
@@ -54,6 +56,7 @@ export function AllOrdersTable() {
                 menuType: data.menuType,
                 userId: data.userId,
                 userName: userName,
+                createdAt: data.createdAt,
             };
         });
 

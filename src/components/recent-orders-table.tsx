@@ -36,7 +36,7 @@ export function RecentOrdersTable() {
     };
 
     const ordersRef = collection(db, "orders");
-    const q = query(ordersRef, where("userId", "==", user.uid), orderBy("createdAt", "desc"));
+    const q = query(ordersRef, where("userId", "==", user.uid));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const userOrders = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
@@ -49,6 +49,16 @@ export function RecentOrdersTable() {
                 menuType: data.menuType,
             };
         }) as Order[];
+        // Manual sort on the client-side as a temporary workaround for the missing index.
+        // This is not ideal for large datasets but will work for now.
+        if (Array.isArray(userOrders)) {
+            userOrders.sort((a: any, b: any) => {
+                if (a.createdAt && b.createdAt) {
+                    return b.createdAt.toMillis() - a.createdAt.toMillis();
+                }
+                return 0;
+            });
+        }
         setOrders(userOrders);
         setLoading(false);
     }, (error) => {
