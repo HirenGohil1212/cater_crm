@@ -10,12 +10,12 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const SuggestWaitersInputSchema = z.object({
+const SuggestWaitersInputSchema = z.object({
   attendees: z.number().describe('The number of people attending the event.'),
 });
 export type SuggestWaitersInput = z.infer<typeof SuggestWaitersInputSchema>;
 
-export const SuggestWaitersOutputSchema = z.object({
+const SuggestWaitersOutputSchema = z.object({
   waiterCount: z.number().describe('The suggested number of waiters.'),
   reasoning: z.string().describe('The reasoning behind the suggestion.'),
 });
