@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building, Phone, Mail, User, Shield, Briefcase } from "lucide-react";
+import { Building, Phone, Mail, User, Shield, Briefcase, Calculator } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 const contacts = [
