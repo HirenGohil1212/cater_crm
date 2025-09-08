@@ -27,22 +27,40 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { FileText, Download, Loader2 } from "lucide-react";
+import { FileText, Download, Loader2, BookUser, ClipboardCheck, Users } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
 
-export default function HRDashboardPage() {
+function PlaceholderTab({ title, icon: Icon }: { title: string, icon: React.ElementType }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>{title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-96 border-2 border-dashed rounded-lg bg-muted/30">
+                    <Icon className="h-16 w-16 mb-4" />
+                    <h3 className="text-xl font-semibold">{title}</h3>
+                    <p>Feature coming soon.</p>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function AgreementsTab() {
     const { toast } = useToast();
     const [staff, setStaff] = useState<Staff[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-    useEffect(() => {
+     useEffect(() => {
         const q = query(collection(db, "staff"), orderBy("name"));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const staffList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff));
@@ -97,29 +115,29 @@ export default function HRDashboardPage() {
 
     return (
         <>
-        <Card>
-            <CardHeader>
-                <CardTitle>Digital Staff Agreements</CardTitle>
-                <CardDescription>Generate and manage employment agreements for all staff members.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Phone</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {renderTableBody()}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Digital Staff Agreements</CardTitle>
+                    <CardDescription>Generate and manage employment agreements for all staff members.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Phone</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {renderTableBody()}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogContent className="sm:max-w-3xl">
                 {selectedStaff && (
                     <>
@@ -139,12 +157,20 @@ export default function HRDashboardPage() {
                                     <li><strong>Full Name:</strong> <span className="text-foreground">{selectedStaff.name}</span></li>
                                     <li><strong>Address:</strong> <span className="text-foreground">{selectedStaff.address || 'N/A'}</span></li>
                                     <li><strong>ID Number (Aadhar/PAN):</strong> <span className="text-foreground">{selectedStaff.idNumber || 'N/A'}</span></li>
+                                    <li><strong>Staff Type:</strong> <span className="text-foreground">{selectedStaff.staffType || 'N/A'}</span></li>
                                 </ul>
                             </div>
                             
                             <div className="space-y-2">
                                 <h4 className="font-semibold text-base">2. Position</h4>
                                 <p>The Staff Member is employed in the position of <strong className="text-foreground">{selectedStaff.role}</strong>.</p>
+                            </div>
+                             <div className="space-y-2">
+                                <h4 className="font-semibold text-base">3. Banking Information</h4>
+                                <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
+                                    <li><strong>Bank Account Number:</strong> <span className="text-foreground">{selectedStaff.bankAccountNumber || 'N/A'}</span></li>
+                                    <li><strong>IFSC Code:</strong> <span className="text-foreground">{selectedStaff.bankIfscCode || 'N/A'}</span></li>
+                                </ul>
                             </div>
                             
                             <p>... Additional clauses for Duties, Compensation, etc. would go here ...</p>
@@ -177,7 +203,35 @@ export default function HRDashboardPage() {
             </DialogContent>
         </Dialog>
         </>
-    );
+    )
 }
 
-    
+export default function HRDashboardPage() {
+    return (
+        <Tabs defaultValue="agreements" className="w-full">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Human Resources Dashboard</CardTitle>
+                    <CardDescription>Manage staff agreements, inquiries, training, and data.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="agreements"><FileText className="mr-2 h-4 w-4" />Staff Agreements</TabsTrigger>
+                        <TabsTrigger value="inquiries"><BookUser className="mr-2 h-4 w-4" />Inquiry Management</TabsTrigger>
+                        <TabsTrigger value="training"><ClipboardCheck className="mr-2 h-4 w-4" />Staff Training</TabsTrigger>
+                    </TabsList>
+                </CardContent>
+            </Card>
+
+            <TabsContent value="agreements" className="mt-4">
+                <AgreementsTab />
+            </TabsContent>
+            <TabsContent value="inquiries" className="mt-4">
+                <PlaceholderTab title="Inquiry & Lead Management" icon={BookUser} />
+            </TabsContent>
+            <TabsContent value="training" className="mt-4">
+                <PlaceholderTab title="Staff Training" icon={ClipboardCheck} />
+            </TabsContent>
+        </Tabs>
+    );
+}

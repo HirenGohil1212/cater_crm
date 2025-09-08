@@ -60,6 +60,9 @@ const staffBaseSchema = z.object({
   role: z.enum(['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin']),
   address: z.string().min(10, "Address is required."),
   idNumber: z.string().min(10, "Aadhar or PAN number is required."),
+  staffType: z.enum(['individual', 'group-leader', 'outsourced']),
+  bankAccountNumber: z.string().optional(),
+  bankIfscCode: z.string().optional(),
 });
 
 const staffSchema = staffBaseSchema.extend({
@@ -79,6 +82,9 @@ export type Staff = {
   role: 'waiter-steward' | 'supervisor' | 'pro' | 'senior-pro' | 'captain-butler' | 'operational-manager' | 'sales' | 'hr' | 'accountant' | 'admin';
   address: string;
   idNumber: string;
+  staffType: 'individual' | 'group-leader' | 'outsourced';
+  bankAccountNumber?: string;
+  bankIfscCode?: string;
 };
 
 declare global {
@@ -100,7 +106,7 @@ export default function AdminStaffPage() {
 
     const form = useForm<z.infer<typeof staffSchema>>({
         resolver: zodResolver(staffSchema),
-        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "" },
+        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" },
     });
     
     const editForm = useForm<z.infer<typeof editStaffSchema>>({
@@ -121,7 +127,7 @@ export default function AdminStaffPage() {
         if (!isDialogOpen) {
             // Reset state when dialog closes
             setEditingStaff(null);
-            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "" });
+            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" });
             editForm.reset();
             setStep('details');
             setConfirmationResult(null);
@@ -164,6 +170,9 @@ export default function AdminStaffPage() {
                 role: values.role,
                 address: values.address,
                 idNumber: values.idNumber,
+                staffType: values.staffType,
+                bankAccountNumber: values.bankAccountNumber,
+                bankIfscCode: values.bankIfscCode,
             };
 
             await updateDoc(staffDocRef, dataToUpdate);
@@ -200,11 +209,6 @@ export default function AdminStaffPage() {
             if (adminUser) await signOut(auth);
 
             const result = await signInWithPhoneNumber(auth, fullPhoneNumber, appVerifier);
-
-            // Here we need to re-authenticate the admin silently in the background if possible, or handle the state appropriately.
-            // For this implementation, we will proceed with the OTP flow, and the admin will need to log in again if their session was cleared.
-            // A more robust solution might use a custom backend to manage this without admin signout.
-
             setConfirmationResult(result);
             setStep('otp');
             toast({ title: "OTP Sent", description: "Please ask the staff member for the verification code." });
@@ -228,7 +232,7 @@ export default function AdminStaffPage() {
     async function onOtpSubmit(otp: string) {
         if (!confirmationResult) return;
         setIsSubmitting(true);
-        const { name, phone, password, role, address, idNumber } = form.getValues();
+        const { name, phone, password, role, address, idNumber, staffType, bankAccountNumber, bankIfscCode } = form.getValues();
         const fullPhoneNumber = `+91${phone}`;
         const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
 
@@ -250,18 +254,18 @@ export default function AdminStaffPage() {
                 ...sharedData,
                 address,
                 idNumber,
+                staffType,
+                bankAccountNumber: bankAccountNumber || '',
+                bankIfscCode: bankIfscCode || '',
             };
 
             await setDoc(doc(db, "staff", user.uid), staffData);
             await setDoc(doc(db, "users", user.uid), sharedData);
             
-            // At this point, the new user is logged in. Sign them out.
             await signOut(auth);
 
             toast({ title: "Staff Added", description: `${name} has been added.` });
             setIsDialogOpen(false);
-            // NOTE: The admin will need to refresh or re-login if their session was affected.
-            // A production app would handle re-authentication seamlessly.
         } catch (error: any) {
              console.error("Error during OTP confirmation or account creation:", error);
             toast({
@@ -364,59 +368,87 @@ export default function AdminStaffPage() {
                             Fill in the details to create a new staff profile. An OTP will be sent to their phone.
                         </DialogDescription>
                     </DialogHeader>
-                    <FormField control={form.control} name="name" render={({ field }) => (
-                        <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
-                    )}/>
-                    <FormField control={form.control} name="phone" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Phone Number</FormLabel>
-                            <FormControl>
-                                <div className="flex items-center">
-                                    <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
-                                        +91
-                                    </span>
-                                    <Input 
-                                        className="rounded-l-none" 
-                                        placeholder="9876543210" 
-                                        {...field}
-                                    />
-                                </div>
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}/>
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="name" render={({ field }) => (
+                            <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="phone" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Phone Number</FormLabel>
+                                <FormControl>
+                                    <div className="flex items-center">
+                                        <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
+                                            +91
+                                        </span>
+                                        <Input 
+                                            className="rounded-l-none" 
+                                            placeholder="9876543210" 
+                                            {...field}
+                                        />
+                                    </div>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}/>
+                    </div>
                      <FormField control={form.control} name="address" render={({ field }) => (
                         <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea placeholder="123 Main St, Anytown..." {...field} /></FormControl><FormMessage /></FormItem>
                     )}/>
                      <FormField control={form.control} name="idNumber" render={({ field }) => (
                         <FormItem><FormLabel>Aadhar / PAN Number</FormLabel><FormControl><Input placeholder="XXXXXXXXXXXX" {...field} /></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={form.control} name="password" render={({ field }) => (
-                        <FormItem><FormLabel>Initial Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
-                    )}/>
-                    <FormField control={form.control} name="role" render={({ field }) => (
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="password" render={({ field }) => (
+                            <FormItem><FormLabel>Initial Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="role" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Role</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
+                                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                                        <SelectItem value="pro">PRO</SelectItem>
+                                        <SelectItem value="senior-pro">Senior PRO</SelectItem>
+                                        <SelectItem value="captain-butler">Captain / Butler</SelectItem>
+                                        <SelectItem value="operational-manager">Operational Manager</SelectItem>
+                                        <SelectItem value="sales">Sales</SelectItem>
+                                        <SelectItem value="hr">Human Resources</SelectItem>
+                                        <SelectItem value="accountant">Accountant</SelectItem>
+                                        <SelectItem value="admin">Administrator</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}/>
+                    </div>
+                     <FormField control={form.control} name="staffType" render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Role</FormLabel>
+                            <FormLabel>Staff Type</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                    <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
-                                    <SelectItem value="supervisor">Supervisor</SelectItem>
-                                    <SelectItem value="pro">PRO</SelectItem>
-                                    <SelectItem value="senior-pro">Senior PRO</SelectItem>
-                                    <SelectItem value="captain-butler">Captain / Butler</SelectItem>
-                                    <SelectItem value="operational-manager">Operational Manager</SelectItem>
-                                    <SelectItem value="sales">Sales</SelectItem>
-                                    <SelectItem value="hr">Human Resources</SelectItem>
-                                    <SelectItem value="accountant">Accountant</SelectItem>
-                                    <SelectItem value="admin">Administrator</SelectItem>
+                                    <SelectItem value="individual">Individual (In-House)</SelectItem>
+                                    <SelectItem value="group-leader">Group Leader</SelectItem>
+                                    <SelectItem value="outsourced">Outsourced</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage />
                         </FormItem>
                     )}/>
+                     <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="bankAccountNumber" render={({ field }) => (
+                            <FormItem><FormLabel>Bank Account Number</FormLabel><FormControl><Input placeholder="1234567890" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="bankIfscCode" render={({ field }) => (
+                            <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                     </div>
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -439,57 +471,85 @@ export default function AdminStaffPage() {
                             Update the details for {editingStaff?.name}.
                         </DialogDescription>
                     </DialogHeader>
-                    <FormField control={editForm.control} name="name" render={({ field }) => (
-                        <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
-                    )}/>
-                    <FormField control={editForm.control} name="phone" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Phone Number</FormLabel>
-                            <FormControl>
-                                <div className="flex items-center">
-                                    <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
-                                        +91
-                                    </span>
-                                    <Input 
-                                        className="rounded-l-none" 
-                                        placeholder="9876543210" 
-                                        {...field} 
-                                        disabled={true}
-                                    />
-                                </div>
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}/>
+                     <div className="grid grid-cols-2 gap-4">
+                        <FormField control={editForm.control} name="name" render={({ field }) => (
+                            <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={editForm.control} name="phone" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Phone Number</FormLabel>
+                                <FormControl>
+                                    <div className="flex items-center">
+                                        <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
+                                            +91
+                                        </span>
+                                        <Input 
+                                            className="rounded-l-none" 
+                                            placeholder="9876543210" 
+                                            {...field} 
+                                            disabled={true}
+                                        />
+                                    </div>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}/>
+                     </div>
                      <FormField control={editForm.control} name="address" render={({ field }) => (
                         <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea placeholder="123 Main St, Anytown..." {...field} /></FormControl><FormMessage /></FormItem>
                     )}/>
                      <FormField control={editForm.control} name="idNumber" render={({ field }) => (
                         <FormItem><FormLabel>Aadhar / PAN Number</FormLabel><FormControl><Input placeholder="XXXXXXXXXXXX" {...field} /></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={editForm.control} name="role" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Role</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
-                                    <SelectItem value="supervisor">Supervisor</SelectItem>
-                                    <SelectItem value="pro">PRO</SelectItem>
-                                    <SelectItem value="senior-pro">Senior PRO</SelectItem>
-                                    <SelectItem value="captain-butler">Captain / Butler</SelectItem>
-                                    <SelectItem value="operational-manager">Operational Manager</SelectItem>
-                                    <SelectItem value="sales">Sales</SelectItem>
-                                    <SelectItem value="hr">Human Resources</SelectItem>
-                                    <SelectItem value="accountant">Accountant</SelectItem>
-                                    <SelectItem value="admin">Administrator</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}/>
+                     <div className="grid grid-cols-2 gap-4">
+                        <FormField control={editForm.control} name="role" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Role</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
+                                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                                        <SelectItem value="pro">PRO</SelectItem>
+                                        <SelectItem value="senior-pro">Senior PRO</SelectItem>
+                                        <SelectItem value="captain-butler">Captain / Butler</SelectItem>
+                                        <SelectItem value="operational-manager">Operational Manager</SelectItem>
+                                        <SelectItem value="sales">Sales</SelectItem>
+                                        <SelectItem value="hr">Human Resources</SelectItem>
+                                        <SelectItem value="accountant">Accountant</SelectItem>
+                                        <SelectItem value="admin">Administrator</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}/>
+                        <FormField control={editForm.control} name="staffType" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Staff Type</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="individual">Individual (In-House)</SelectItem>
+                                        <SelectItem value="group-leader">Group Leader</SelectItem>
+                                        <SelectItem value="outsourced">Outsourced</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}/>
+                     </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField control={editForm.control} name="bankAccountNumber" render={({ field }) => (
+                            <FormItem><FormLabel>Bank Account Number</FormLabel><FormControl><Input placeholder="1234567890" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={editForm.control} name="bankIfscCode" render={({ field }) => (
+                            <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                     </div>
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -515,7 +575,7 @@ export default function AdminStaffPage() {
                         <DialogTrigger asChild>
                             <Button onClick={openDialogForNew}><PlusCircle className="mr-2 h-4 w-4"/> Add New Staff</Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-[480px]">
+                        <DialogContent className="sm:max-w-2xl">
                           {editingStaff ? renderEditStaffDialogContent() : renderNewStaffDialogContent()}
                         </DialogContent>
                     </Dialog>
@@ -539,5 +599,3 @@ export default function AdminStaffPage() {
         </Card>
     );
 }
-
-    
