@@ -65,7 +65,7 @@ const staffSchema = staffBaseSchema.refine(data => !!data.password, {
 });
 
 
-const editStaffSchema = staffBaseSchema.omit({ password: true }).extend({
+const editStaffSchema = staffBaseSchema.omit({ password: true, phone: true }).extend({
     password: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
 });
 
@@ -126,12 +126,10 @@ export default function AdminStaffPage() {
 
     async function onSubmit(values: z.infer<typeof staffBaseSchema>) {
         setIsSubmitting(true);
-        const fullPhoneNumber = `+91${values.phone}`;
-        const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
-
+        
         try {
             if (editingStaff) {
-                 // Update logic - password is not changed here, but other details are.
+                 // Update logic
                 const staffDocRef = doc(db, "staff", editingStaff.id);
                 await updateDoc(staffDocRef, {
                     name: values.name,
@@ -150,6 +148,8 @@ export default function AdminStaffPage() {
                     setIsSubmitting(false);
                     return;
                 }
+                const fullPhoneNumber = `+91${values.phone}`;
+                const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
                 const userCredential = await createUserWithEmailAndPassword(auth, dummyEmail, values.password);
                 const user = userCredential.user;
                 
