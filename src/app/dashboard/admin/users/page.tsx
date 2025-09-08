@@ -94,6 +94,14 @@ export default function AdminUsersPage() {
         try {
             const userDocRef = doc(db, "users", editingUser.id);
             await updateDoc(userDocRef, { role: values.role });
+
+            // also update staff collection if user has a staff role
+            const staffRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin'];
+            if(staffRoles.includes(values.role)) {
+                const staffDocRef = doc(db, "staff", editingUser.id);
+                await updateDoc(staffDocRef, { role: values.role });
+            }
+
             toast({ title: "User Role Updated", description: `${editingUser.name}'s role has been changed to ${capitalize(values.role)}.` });
             setIsDialogOpen(false);
             setEditingUser(null);
@@ -137,6 +145,55 @@ export default function AdminUsersPage() {
             </TableRow>
         ));
     };
+    
+    const renderEditDialog = () => {
+        return (
+             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Role for {editingUser?.name}</DialogTitle>
+                        <DialogDescription>
+                            Change the role for this user. This will grant them different permissions across the app.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                            <FormField control={form.control} name="role" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Role</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="consumer">Client / Consumer</SelectItem>
+                                            <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
+                                            <SelectItem value="supervisor">Supervisor</SelectItem>
+                                            <SelectItem value="pro">PRO</SelectItem>
+                                            <SelectItem value="senior-pro">Senior PRO</SelectItem>
+                                            <SelectItem value="captain-butler">Captain / Butler</SelectItem>
+                                            <SelectItem value="operational-manager">Operational Manager</SelectItem>
+                                            <SelectItem value="sales">Sales</SelectItem>
+                                            <SelectItem value="hr">Human Resources</SelectItem>
+                                            <SelectItem value="accountant">Accountant</SelectItem>
+                                            <SelectItem value="admin">Administrator</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}/>
+                            <DialogFooter>
+                                <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                                <Button type="submit" disabled={isSubmitting}>
+                                    {isSubmitting ? 'Saving...' : 'Save Changes'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
+        )
+    }
 
     return (
         <Card>
@@ -145,50 +202,7 @@ export default function AdminUsersPage() {
                 <CardDescription>View all registered client users and manage their roles.</CardDescription>
             </CardHeader>
             <CardContent>
-                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Edit Role for {editingUser?.name}</DialogTitle>
-                            <DialogDescription>
-                                Change the role for this user. This will grant them different permissions across the app.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <FormField control={form.control} name="role" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Role</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="consumer">Client / Consumer</SelectItem>
-                                                <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
-                                                <SelectItem value="supervisor">Supervisor</SelectItem>
-                                                <SelectItem value="pro">PRO</SelectItem>
-                                                <SelectItem value="senior-pro">Senior PRO</SelectItem>
-                                                <SelectItem value="captain-butler">Captain / Butler</SelectItem>
-                                                <SelectItem value="operational-manager">Operational Manager</SelectItem>
-                                                <SelectItem value="sales">Sales</SelectItem>
-                                                <SelectItem value="hr">Human Resources</SelectItem>
-                                                <SelectItem value="accountant">Accountant</SelectItem>
-                                                <SelectItem value="admin">Administrator</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}/>
-                                <DialogFooter>
-                                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                                    <Button type="submit" disabled={isSubmitting}>
-                                        {isSubmitting ? 'Saving...' : 'Save Changes'}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </Form>
-                    </DialogContent>
-                </Dialog>
+                {renderEditDialog()}
                 <Table>
                     <TableHeader>
                         <TableRow>
