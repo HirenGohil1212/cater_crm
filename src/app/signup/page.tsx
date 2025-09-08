@@ -15,12 +15,12 @@ import { auth, db, DUMMY_EMAIL_DOMAIN } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, EmailAuthProvider, linkWithCredential } from "firebase/auth";
 import { doc, setDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { UtensilsCrossed } from 'lucide-react';
+import { Loader2, UtensilsCrossed } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 
 const formSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters."),
-    phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number with country code."),
+    phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
     password: z.string().min(6, "Password must be at least 6 characters."),
     terms: z.boolean().refine(val => val === true, { message: "You must accept the terms and conditions." }),
 });
@@ -55,9 +55,10 @@ export default function SignupPage() {
         setIsSubmitting(true);
         setupRecaptcha();
         const appVerifier = window.recaptchaVerifier;
+        const fullPhoneNumber = `+91${values.phone}`;
 
         try {
-            const result = await signInWithPhoneNumber(auth, values.phone, appVerifier);
+            const result = await signInWithPhoneNumber(auth, fullPhoneNumber, appVerifier);
             setConfirmationResult(result);
             setStep('otp');
             toast({ title: "OTP Sent", description: "Please check your phone for the verification code." });
@@ -83,7 +84,8 @@ export default function SignupPage() {
         if (!confirmationResult) return;
         setIsSubmitting(true);
         const { name, phone, password } = form.getValues();
-        const dummyEmail = `${phone}@${DUMMY_EMAIL_DOMAIN}`;
+        const fullPhoneNumber = `+91${phone}`;
+        const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
 
         try {
             const userCredential = await confirmationResult.confirm(otp);
@@ -95,7 +97,7 @@ export default function SignupPage() {
             await setDoc(doc(db, "users", user.uid), {
                 uid: user.uid,
                 name,
-                phone,
+                phone: fullPhoneNumber,
                 role: 'consumer', // Default role for signup
                 createdAt: new Date(),
             });
@@ -139,7 +141,18 @@ export default function SignupPage() {
                                         <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
                                     <FormField control={form.control} name="phone" render={({ field }) => (
-                                        <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="+19876543210" {...field} /></FormControl><FormMessage /></FormItem>
+                                        <FormItem>
+                                            <FormLabel>Phone Number</FormLabel>
+                                            <FormControl>
+                                                <div className="flex items-center">
+                                                    <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
+                                                        +91
+                                                    </span>
+                                                    <Input className="rounded-l-none" placeholder="9876543210" {...field} />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
                                     )} />
                                     <FormField control={form.control} name="password" render={({ field }) => (
                                         <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
@@ -165,6 +178,7 @@ export default function SignupPage() {
                                         )}
                                     />
                                     <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                        {isSubmitting && <Loader2 className="animate-spin" />}
                                         {isSubmitting ? 'Sending OTP...' : 'Send OTP'}
                                     </Button>
                                 </form>

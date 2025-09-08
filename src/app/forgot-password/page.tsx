@@ -14,10 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, updatePassword, signOut } from "firebase/auth";
 import Link from 'next/link';
-import { UtensilsCrossed } from 'lucide-react';
+import { Loader2, UtensilsCrossed } from 'lucide-react';
 
 const phoneSchema = z.object({
-    phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number with country code."),
+    phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
 });
 
 const passwordSchema = z.object({
@@ -61,9 +61,10 @@ export default function ForgotPasswordPage() {
         setIsSubmitting(true);
         setupRecaptcha();
         const appVerifier = window.recaptchaVerifier;
+        const fullPhoneNumber = `+91${values.phone}`;
 
         try {
-            const result = await signInWithPhoneNumber(auth, values.phone, appVerifier);
+            const result = await signInWithPhoneNumber(auth, fullPhoneNumber, appVerifier);
             setConfirmationResult(result);
             setStep('otp');
             toast({ title: "OTP Sent", description: "Please check your phone for the verification code." });
@@ -129,9 +130,21 @@ export default function ForgotPasswordPage() {
                     <Form {...phoneForm}>
                         <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="space-y-4">
                             <FormField control={phoneForm.control} name="phone" render={({ field }) => (
-                                <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="+19876543210" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem>
+                                    <FormLabel>Phone Number</FormLabel>
+                                    <FormControl>
+                                        <div className="flex items-center">
+                                            <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
+                                                +91
+                                            </span>
+                                            <Input className="rounded-l-none" placeholder="9876543210" {...field} />
+                                        </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
                             )} />
                             <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="animate-spin" />}
                                 {isSubmitting ? 'Sending OTP...' : 'Send OTP'}
                             </Button>
                         </form>
@@ -157,6 +170,7 @@ export default function ForgotPasswordPage() {
                                 <FormItem><FormLabel>Confirm New Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
                             <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="animate-spin" />}
                                 {isSubmitting ? 'Resetting...' : 'Reset Password'}
                             </Button>
                         </form>

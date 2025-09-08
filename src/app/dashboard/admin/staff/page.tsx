@@ -47,14 +47,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { PlusCircle, Edit, Trash2 } from "lucide-react";
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, orderBy, setDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword, reauthenticateWithCredential, EmailAuthProvider, deleteUser } from 'firebase/auth';
+import { PlusCircle, Edit, Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 
 const staffSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number."),
+  phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
   role: z.enum(['waiter', 'supervisor', 'sales', 'hr', 'accountant', 'admin']),
 });
 
@@ -90,7 +90,9 @@ export default function AdminStaffPage() {
 
     const openDialogForEdit = (staffMember: Staff) => {
         setEditingStaff(staffMember);
-        form.reset(staffMember);
+        // Phone number stored with +91, but form expects 10 digits
+        const phoneWithoutCountryCode = staffMember.phone.startsWith('+91') ? staffMember.phone.substring(3) : staffMember.phone;
+        form.reset({ ...staffMember, phone: phoneWithoutCountryCode });
         setIsDialogOpen(true);
     }
     
@@ -102,27 +104,48 @@ export default function AdminStaffPage() {
 
     async function onSubmit(values: z.infer<typeof staffSchema>) {
         setIsSubmitting(true);
-        const dummyEmail = `${values.phone}@${DUMMY_EMAIL_DOMAIN}`;
+        const fullPhoneNumber = `+91${values.phone}`;
+        const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
         const defaultPassword = 'password123'; // Admin should communicate this securely
 
         try {
             if (editingStaff) {
-                // Update logic
                 const staffDocRef = doc(db, "staff", editingStaff.id);
-                await updateDoc(staffDocRef, values);
+                await updateDoc(staffDocRef, {
+                    name: values.name,
+                    phone: fullPhoneNumber,
+                    role: values.role
+                });
+                const userDocRef = doc(db, "users", editingStaff.id);
+                await updateDoc(userDocRef, {
+                    name: values.name,
+                    phone: fullPhoneNumber,
+                    role: values.role
+                });
                 toast({ title: "Staff Updated", description: `${values.name}'s details have been updated.` });
             } else {
-                // Create logic
-                
-                // This is a temporary auth instance to create the user without logging out the admin.
-                // In a real app, this should be handled by a backend function for security.
-                const tempAuth = auth; // This is not ideal, but works for this context. A Cloud Function is the proper way.
-                
-                // Check if user already exists in auth (simple check, might need more robust solution)
-                // Note: Firebase Admin SDK is needed to properly check for user by email without sign-in attempts.
-                // For now, we assume phone numbers are unique and proceed.
-                
-                await addDoc(collection(db, "staff"), values);
+                const tempAuthApp = initializeApp({
+                    apiKey: auth.config.apiKey,
+                    authDomain: auth.config.authDomain,
+                }, `temp-staff-creation-${Date.now()}`);
+                const tempAuth = getAuth(tempAuthApp);
+
+                const userCredential = await createUserWithEmailAndPassword(tempAuth, dummyEmail, defaultPassword);
+                const user = userCredential.user;
+
+                await setDoc(doc(db, "staff", user.uid), {
+                    uid: user.uid,
+                    name: values.name,
+                    phone: fullPhoneNumber,
+                    role: values.role,
+                });
+                 await setDoc(doc(db, "users", user.uid), {
+                    uid: user.uid,
+                    name: values.name,
+                    phone: fullPhoneNumber,
+                    role: values.role,
+                });
+
 
                 toast({
                   title: "Staff Added",
@@ -135,13 +158,19 @@ export default function AdminStaffPage() {
 
         } catch (error: any) {
             console.error("Error saving staff:", error);
-            // A more specific error for user already existing could be implemented here
-            // if (error.code === 'auth/email-already-in-use') { ... }
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: error.message || `Could not save ${values.name}. Please try again.`,
-            });
+            if (error.code === 'auth/email-already-in-use') {
+                 toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'This phone number is already registered.',
+                });
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: error.message || `Could not save ${values.name}. Please try again.`,
+                });
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -150,9 +179,8 @@ export default function AdminStaffPage() {
     async function onDelete(staffId: string) {
         try {
             await deleteDoc(doc(db, "staff", staffId));
-            // Note: This does not delete the user from Firebase Auth.
-            // That requires Admin SDK privileges, typically in a Cloud Function.
-            toast({ title: "Staff Deleted", description: "The staff member has been removed from the database." });
+            await deleteDoc(doc(db, "users", staffId));
+            toast({ title: "Staff Deleted", description: "The staff member has been removed." });
         } catch (error: any) {
             console.error("Error deleting staff:", error);
             toast({
@@ -195,8 +223,7 @@ export default function AdminStaffPage() {
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete the staff member
-                                    and remove their data from our servers.
+                                    This action cannot be undone. This will permanently delete the staff member's account and all associated data.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -235,7 +262,23 @@ export default function AdminStaffPage() {
                                         <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
                                     )}/>
                                     <FormField control={form.control} name="phone" render={({ field }) => (
-                                        <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="+19876543210" {...field} /></FormControl><FormMessage /></FormItem>
+                                        <FormItem>
+                                            <FormLabel>Phone Number</FormLabel>
+                                            <FormControl>
+                                                <div className="flex items-center">
+                                                    <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
+                                                        +91
+                                                    </span>
+                                                    <Input 
+                                                        className="rounded-l-none" 
+                                                        placeholder="9876543210" 
+                                                        {...field} 
+                                                        disabled={!!editingStaff}
+                                                    />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
                                     )}/>
                                     <FormField control={form.control} name="role" render={({ field }) => (
                                         <FormItem>
@@ -259,6 +302,7 @@ export default function AdminStaffPage() {
                                     <DialogFooter>
                                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                                         <Button type="submit" disabled={isSubmitting}>
+                                            {isSubmitting && <Loader2 className="animate-spin" />}
                                             {isSubmitting ? 'Saving...' : 'Save Changes'}
                                         </Button>
                                     </DialogFooter>
@@ -286,5 +330,3 @@ export default function AdminStaffPage() {
         </Card>
     );
 }
-
-    

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -13,65 +14,73 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from './ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Building2, Calculator, Clipboard, Shield, TrendingUp, User, UserCog } from 'lucide-react';
-import { auth, DUMMY_EMAIL_DOMAIN } from '@/lib/firebase';
+import { auth, db, DUMMY_EMAIL_DOMAIN } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
-
-const roles = [
-  { value: 'consumer', label: 'Client / Consumer', icon: Building2 },
-  { value: 'waiter', label: 'Waiter / Staff', icon: User },
-  { value: 'supervisor', label: 'Supervisor', icon: UserCog },
-  { value: 'sales', label: 'Sales', icon: TrendingUp },
-  { value: 'hr', label: 'Human Resources', icon: Clipboard },
-  { value: 'accountant', label: 'Accountant', icon: Calculator },
-  { value: 'admin', label: 'Administrator', icon: Shield },
-];
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number."),
+  phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
   password: z.string().min(1, { message: "Password is required." }),
-  role: z.string({ required_error: "Please select a role." }),
 });
 
 export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       phone: "",
       password: "",
-      role: "consumer",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const dummyEmail = `${values.phone}@${DUMMY_EMAIL_DOMAIN}`;
+    setIsSubmitting(true);
+    const fullPhoneNumber = `+91${values.phone}`;
+    const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
+    
     try {
-        await signInWithEmailAndPassword(auth, dummyEmail, values.password);
+        const userCredential = await signInWithEmailAndPassword(auth, dummyEmail, values.password);
+        const user = userCredential.user;
+
+        // Fetch user role from Firestore
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        let role = 'consumer'; // Default role
+        if (userDocSnap.exists()) {
+            role = userDocSnap.data().role || 'consumer';
+        } else {
+            // This case might happen for staff members who are not in the 'users' collection
+            const staffDocRef = doc(db, "staff", user.uid);
+            const staffDocSnap = await getDoc(staffDocRef);
+             if (staffDocSnap.exists()) {
+                role = staffDocSnap.data().role || 'waiter';
+             }
+        }
+        
         toast({
             title: "Login Successful",
-            description: `Welcome! Redirecting to the ${values.role} dashboard.`,
+            description: `Welcome! Redirecting to your dashboard.`,
         });
-        router.push(`/dashboard/${values.role}`);
+        
+        router.push(`/dashboard/${role}`);
+
     } catch (error: any) {
         console.error("Login failed:", error);
         toast({
             variant: "destructive",
             title: "Login Failed",
-            description: error.message || "An unknown error occurred.",
+            description: "Invalid phone number or password. Please try again.",
         });
+    } finally {
+        setIsSubmitting(false);
     }
   }
 
@@ -86,7 +95,12 @@ export function LoginForm() {
             <FormItem>
               <FormLabel>Phone Number</FormLabel>
               <FormControl>
-                <Input placeholder="+19876543210" {...field} />
+                <div className="flex items-center">
+                    <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
+                        +91
+                    </span>
+                    <Input className="rounded-l-none" placeholder="9876543210" {...field} />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -112,35 +126,9 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="role"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Role</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role to login as" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.value} value={role.value}>
-                      <div className="flex items-center gap-2">
-                        <role.icon className="h-4 w-4 text-muted-foreground" />
-                        <span>{role.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? 'Logging in...' : 'Login'}
+        <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isSubmitting}>
+          {isSubmitting && <Loader2 className="animate-spin" />}
+          {isSubmitting ? 'Logging in...' : 'Login'}
         </Button>
       </form>
     </Form>
