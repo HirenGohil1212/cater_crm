@@ -52,11 +52,14 @@ import { createUserWithEmailAndPassword, RecaptchaVerifier, signInWithPhoneNumbe
 import { PlusCircle, Edit, Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { OtpInput } from '@/components/otp-input';
+import { Textarea } from '@/components/ui/textarea';
 
 const staffBaseSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
   role: z.enum(['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin']),
+  address: z.string().min(10, "Address is required."),
+  idNumber: z.string().min(10, "Aadhar or PAN number is required."),
 });
 
 const staffSchema = staffBaseSchema.extend({
@@ -74,6 +77,8 @@ export type Staff = {
   name: string;
   phone: string;
   role: 'waiter-steward' | 'supervisor' | 'pro' | 'senior-pro' | 'captain-butler' | 'operational-manager' | 'sales' | 'hr' | 'accountant' | 'admin';
+  address: string;
+  idNumber: string;
 };
 
 declare global {
@@ -95,7 +100,7 @@ export default function AdminStaffPage() {
 
     const form = useForm<z.infer<typeof staffSchema>>({
         resolver: zodResolver(staffSchema),
-        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "" },
+        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "" },
     });
     
     const editForm = useForm<z.infer<typeof editStaffSchema>>({
@@ -116,7 +121,7 @@ export default function AdminStaffPage() {
         if (!isDialogOpen) {
             // Reset state when dialog closes
             setEditingStaff(null);
-            form.reset({ name: "", phone: "", role: "waiter-steward", password: "" });
+            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "" });
             editForm.reset();
             setStep('details');
             setConfirmationResult(null);
@@ -154,10 +159,15 @@ export default function AdminStaffPage() {
         setIsSubmitting(true);
         try {
             const staffDocRef = doc(db, "staff", editingStaff.id);
-            await updateDoc(staffDocRef, {
+            const dataToUpdate = {
                 name: values.name,
-                role: values.role
-            });
+                role: values.role,
+                address: values.address,
+                idNumber: values.idNumber,
+            };
+
+            await updateDoc(staffDocRef, dataToUpdate);
+            
             const userDocRef = doc(db, "users", editingStaff.id);
             const userDocSnap = await getDoc(userDocRef);
             if (userDocSnap.exists()) {
@@ -192,8 +202,7 @@ export default function AdminStaffPage() {
             const result = await signInWithPhoneNumber(auth, fullPhoneNumber, appVerifier);
 
             // Here we need to re-authenticate the admin silently in the background if possible, or handle the state appropriately.
-            // For this implementation, we will proceed assuming the admin context is managed outside or re-established.
-            // This example will proceed with the OTP flow, and the admin will need to log in again if their session was cleared.
+            // For this implementation, we will proceed with the OTP flow, and the admin will need to log in again if their session was cleared.
             // A more robust solution might use a custom backend to manage this without admin signout.
 
             setConfirmationResult(result);
@@ -219,7 +228,7 @@ export default function AdminStaffPage() {
     async function onOtpSubmit(otp: string) {
         if (!confirmationResult) return;
         setIsSubmitting(true);
-        const { name, phone, password, role } = form.getValues();
+        const { name, phone, password, role, address, idNumber } = form.getValues();
         const fullPhoneNumber = `+91${phone}`;
         const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
 
@@ -230,15 +239,21 @@ export default function AdminStaffPage() {
             const emailCredential = EmailAuthProvider.credential(dummyEmail, password);
             await linkWithCredential(user, emailCredential);
 
-            const userData = {
+            const sharedData = {
                 uid: user.uid,
                 name,
                 phone: fullPhoneNumber,
                 role,
             };
 
-            await setDoc(doc(db, "staff", user.uid), userData);
-            await setDoc(doc(db, "users", user.uid), userData);
+            const staffData = {
+                ...sharedData,
+                address,
+                idNumber,
+            };
+
+            await setDoc(doc(db, "staff", user.uid), staffData);
+            await setDoc(doc(db, "users", user.uid), sharedData);
             
             // At this point, the new user is logged in. Sign them out.
             await signOut(auth);
@@ -370,6 +385,12 @@ export default function AdminStaffPage() {
                             <FormMessage />
                         </FormItem>
                     )}/>
+                     <FormField control={form.control} name="address" render={({ field }) => (
+                        <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea placeholder="123 Main St, Anytown..." {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                     <FormField control={form.control} name="idNumber" render={({ field }) => (
+                        <FormItem><FormLabel>Aadhar / PAN Number</FormLabel><FormControl><Input placeholder="XXXXXXXXXXXX" {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
                     <FormField control={form.control} name="password" render={({ field }) => (
                         <FormItem><FormLabel>Initial Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
                     )}/>
@@ -440,6 +461,12 @@ export default function AdminStaffPage() {
                             <FormMessage />
                         </FormItem>
                     )}/>
+                     <FormField control={editForm.control} name="address" render={({ field }) => (
+                        <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea placeholder="123 Main St, Anytown..." {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                     <FormField control={editForm.control} name="idNumber" render={({ field }) => (
+                        <FormItem><FormLabel>Aadhar / PAN Number</FormLabel><FormControl><Input placeholder="XXXXXXXXXXXX" {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
                     <FormField control={editForm.control} name="role" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Role</FormLabel>
@@ -488,7 +515,7 @@ export default function AdminStaffPage() {
                         <DialogTrigger asChild>
                             <Button onClick={openDialogForNew}><PlusCircle className="mr-2 h-4 w-4"/> Add New Staff</Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="sm:max-w-[480px]">
                           {editingStaff ? renderEditStaffDialogContent() : renderNewStaffDialogContent()}
                         </DialogContent>
                     </Dialog>
@@ -512,3 +539,5 @@ export default function AdminStaffPage() {
         </Card>
     );
 }
+
+    
