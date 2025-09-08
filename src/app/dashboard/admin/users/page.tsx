@@ -36,7 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc, query, orderBy, DocumentData } from "firebase/firestore";
-import { Edit } from "lucide-react";
+import { Edit, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { capitalize } from '@/lib/utils';
 
@@ -80,10 +80,15 @@ export default function AdminUsersPage() {
         });
         return () => unsubscribe();
     }, []);
+    
+    useEffect(() => {
+        if (editingUser) {
+            form.reset({ role: editingUser.role });
+        }
+    }, [editingUser, form]);
 
     const openDialogForEdit = (user: User) => {
         setEditingUser(user);
-        form.reset({ role: user.role });
         setIsDialogOpen(true);
     }
 
@@ -99,7 +104,10 @@ export default function AdminUsersPage() {
             const staffRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin'];
             if(staffRoles.includes(values.role)) {
                 const staffDocRef = doc(db, "staff", editingUser.id);
-                await updateDoc(staffDocRef, { role: values.role });
+                // Check if doc exists before updating
+                if ((await doc(staffDocRef).get()).exists()) {
+                    await updateDoc(staffDocRef, { role: values.role });
+                }
             }
 
             toast({ title: "User Role Updated", description: `${editingUser.name}'s role has been changed to ${capitalize(values.role)}.` });
@@ -146,8 +154,28 @@ export default function AdminUsersPage() {
         ));
     };
     
-    const renderEditDialog = () => {
-        return (
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>View all registered client users and manage their roles.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {renderTableBody()}
+                    </TableBody>
+                </Table>
+            </CardContent>
+
              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -185,6 +213,7 @@ export default function AdminUsersPage() {
                             <DialogFooter>
                                 <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                                 <Button type="submit" disabled={isSubmitting}>
+                                    {isSubmitting && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
                                     {isSubmitting ? 'Saving...' : 'Save Changes'}
                                 </Button>
                             </DialogFooter>
@@ -192,31 +221,6 @@ export default function AdminUsersPage() {
                     </Form>
                 </DialogContent>
             </Dialog>
-        )
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>View all registered client users and manage their roles.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {renderEditDialog()}
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Phone</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {renderTableBody()}
-                    </TableBody>
-                </Table>
-            </CardContent>
         </Card>
     );
 }
