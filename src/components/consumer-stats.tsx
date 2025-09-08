@@ -51,7 +51,12 @@ export function ConsumerStats() {
             const userOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
             
             // Sort by creation date to find the most recent
-            userOrders.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+            userOrders.sort((a,b) => {
+                if (a.createdAt && b.createdAt) {
+                    return b.createdAt.toMillis() - a.createdAt.toMillis()
+                }
+                return 0;
+            });
 
             const newStats: Stats = {
                 totalSpent: 0,
