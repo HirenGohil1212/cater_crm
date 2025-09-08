@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -110,12 +111,12 @@ export default function AdminStaffPage() {
 
     const form = useForm<z.infer<typeof staffSchema>>({
         resolver: zodResolver(staffSchema),
-        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0 },
+        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0, bankAccountNumber: '', bankIfscCode: '' },
     });
     
     const editForm = useForm<z.infer<typeof editStaffSchema>>({
         resolver: zodResolver(editStaffSchema),
-        defaultValues: { perEventCharge: 0, monthlySalary: 0 },
+        defaultValues: { perEventCharge: 0, monthlySalary: 0, bankAccountNumber: '', bankIfscCode: '' },
     });
 
     const staffType = form.watch('staffType');
@@ -135,13 +136,20 @@ export default function AdminStaffPage() {
         if (!isDialogOpen) {
             // Reset state when dialog closes
             setEditingStaff(null);
-            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0 });
-            editForm.reset();
+            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0, bankAccountNumber: '', bankIfscCode: '' });
+            editForm.reset({ perEventCharge: 0, monthlySalary: 0, bankAccountNumber: '', bankIfscCode: '' });
             setStep('details');
             setConfirmationResult(null);
         } else {
              if (editingStaff) {
-                 editForm.reset({ ...editingStaff, phone: editingStaff.phone.startsWith('+91') ? editingStaff.phone.substring(3) : editingStaff.phone });
+                 editForm.reset({ 
+                    ...editingStaff, 
+                    phone: editingStaff.phone.startsWith('+91') ? editingStaff.phone.substring(3) : editingStaff.phone,
+                    perEventCharge: editingStaff.perEventCharge || 0,
+                    monthlySalary: editingStaff.monthlySalary || 0,
+                    bankAccountNumber: editingStaff.bankAccountNumber || '',
+                    bankIfscCode: editingStaff.bankIfscCode || '',
+                });
              } else {
                  setupRecaptcha();
              }
@@ -179,8 +187,8 @@ export default function AdminStaffPage() {
                 address: values.address,
                 idNumber: values.idNumber,
                 staffType: values.staffType,
-                bankAccountNumber: values.bankAccountNumber,
-                bankIfscCode: values.bankIfscCode,
+                bankAccountNumber: values.bankAccountNumber || '',
+                bankIfscCode: values.bankIfscCode || '',
             };
 
             if (values.staffType === 'salaried') {
@@ -648,5 +656,7 @@ export default function AdminStaffPage() {
         </Card>
     );
 }
+
+    
 
     
