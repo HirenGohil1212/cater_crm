@@ -93,7 +93,7 @@ function AgreementsTab() {
     
     const form = useForm<z.infer<typeof staffSchema>>({
         resolver: zodResolver(staffSchema),
-        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" },
+        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0 },
     });
     
     const staffType = form.watch('staffType');
@@ -122,7 +122,7 @@ function AgreementsTab() {
              setupRecaptcha();
         } else {
             // Reset state when dialog closes
-            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" });
+            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0 });
             setStep('details');
             setConfirmationResult(null);
         }
@@ -205,8 +205,10 @@ function AgreementsTab() {
 
             if (values.staffType === 'salaried') {
                 staffData.monthlySalary = values.monthlySalary || 0;
+                staffData.perEventCharge = 0;
             } else {
                 staffData.perEventCharge = values.perEventCharge || 0;
+                staffData.monthlySalary = 0;
             }
 
             await setDoc(doc(db, "staff", user.uid), staffData);
@@ -535,3 +537,5 @@ export default function HRDashboardPage() {
         </Tabs>
     );
 }
+
+    

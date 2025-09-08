@@ -110,11 +110,12 @@ export default function AdminStaffPage() {
 
     const form = useForm<z.infer<typeof staffSchema>>({
         resolver: zodResolver(staffSchema),
-        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" },
+        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0 },
     });
     
     const editForm = useForm<z.infer<typeof editStaffSchema>>({
         resolver: zodResolver(editStaffSchema),
+        defaultValues: { perEventCharge: 0, monthlySalary: 0 },
     });
 
     const staffType = form.watch('staffType');
@@ -134,7 +135,7 @@ export default function AdminStaffPage() {
         if (!isDialogOpen) {
             // Reset state when dialog closes
             setEditingStaff(null);
-            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" });
+            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual", perEventCharge: 0, monthlySalary: 0 });
             editForm.reset();
             setStep('details');
             setConfirmationResult(null);
@@ -276,8 +277,10 @@ export default function AdminStaffPage() {
 
              if (values.staffType === 'salaried') {
                 staffData.monthlySalary = values.monthlySalary || 0;
+                staffData.perEventCharge = 0;
             } else {
                 staffData.perEventCharge = values.perEventCharge || 0;
+                staffData.monthlySalary = 0;
             }
 
 
@@ -645,3 +648,5 @@ export default function AdminStaffPage() {
         </Card>
     );
 }
+
+    
