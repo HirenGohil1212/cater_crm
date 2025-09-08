@@ -109,7 +109,7 @@ export default function WaiterDashboardPage() {
             </TabsContent>
             <TabsContent value="grooming" className="mt-4">
                 <PlaceholderTab title="Grooming & Confirmation" icon={UserCheck} />
-            </Tabs-Content>
+            </TabsContent>
         </Tabs>
     );
 }
