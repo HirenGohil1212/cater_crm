@@ -24,7 +24,11 @@ import {
   TrendingUp,
   User,
   UserCog,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Users,
+  Calendar,
+  DollarSign,
+  BarChart,
 } from "lucide-react";
 import { capitalize } from "@/lib/utils";
 
@@ -53,7 +57,11 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/accountant", label: "Accounting", icon: Calculator },
   ],
   admin: [
-    { href: "/dashboard/admin", label: "System Admin", icon: Shield },
+    { href: "/dashboard/admin", label: "Admin Dashboard", icon: Shield },
+    { href: "/dashboard/admin/staff", label: "Staff", icon: Users },
+    { href: "/dashboard/admin/events", label: "Events", icon: Calendar },
+    { href: "/dashboard/admin/billing", label: "Billing", icon: DollarSign },
+    { href: "/dashboard/admin/reports", label: "Reports", icon: BarChart },
   ],
 };
 
@@ -80,7 +88,7 @@ export function DashboardSidebarContent({ role }: DashboardSidebarContentProps) 
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} passHref>
                 <SidebarMenuButton
-                  isActive={pathname === item.href}
+                  isActive={pathname.startsWith(item.href) && (item.href !== '/dashboard/admin' || pathname === '/dashboard/admin')}
                   tooltip={item.label}
                 >
                   <item.icon />
