@@ -381,6 +381,8 @@ export default function AdminStaffPage() {
                                             +91
                                         </span>
                                         <Input 
+                                            type="tel"
+                                            maxLength={10}
                                             className="rounded-l-none" 
                                             placeholder="9876543210" 
                                             {...field}
@@ -484,6 +486,8 @@ export default function AdminStaffPage() {
                                             +91
                                         </span>
                                         <Input 
+                                            type="tel"
+                                            maxLength={10}
                                             className="rounded-l-none" 
                                             placeholder="9876543210" 
                                             {...field} 

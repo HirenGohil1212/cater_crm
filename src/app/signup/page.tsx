@@ -159,7 +159,7 @@ export default function SignupPage() {
                                                     <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
                                                         +91
                                                     </span>
-                                                    <Input className="rounded-l-none" placeholder="9876543210" {...field} />
+                                                    <Input type="tel" maxLength={10} className="rounded-l-none" placeholder="9876543210" {...field} />
                                                 </div>
                                             </FormControl>
                                             <FormMessage />
