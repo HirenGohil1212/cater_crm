@@ -102,7 +102,7 @@ export default function SignupPage() {
                 name,
                 phone: fullPhoneNumber,
                 companyName,
-                gstNumber,
+                gstNumber: gstNumber || '',
                 role: 'consumer', // Default role for client signup
                 createdAt: new Date(),
             });
@@ -213,4 +213,11 @@ export default function SignupPage() {
             </div>
         </main>
     );
+}
+
+declare global {
+    interface Window {
+        recaptchaVerifier: any;
+        confirmationResult: any;
+    }
 }
