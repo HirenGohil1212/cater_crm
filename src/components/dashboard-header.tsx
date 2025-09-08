@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -25,6 +26,7 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ role }: DashboardHeaderProps) {
   const initials = role.substring(0, 2).toUpperCase();
+  const displayRole = capitalize(role.replace('-', ' '));
 
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
@@ -48,7 +50,7 @@ export function DashboardHeader({ role }: DashboardHeaderProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>
                 <div className="font-semibold">My Account</div>
-                <div className="font-normal text-sm text-muted-foreground">{capitalize(role)}</div>
+                <div className="font-normal text-sm text-muted-foreground">{displayRole}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem><User className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>

@@ -46,7 +46,16 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/consumer/billing", label: "Billing", icon: FileText },
     { href: "/dashboard/consumer/support", label: "Support", icon: LifeBuoy },
   ],
-  waiter: [
+  'waiter-steward': [
+    { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
+  ],
+  'pro': [
+    { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
+  ],
+  'senior-pro': [
+    { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
+  ],
+  'captain-butler': [
     { href: "/dashboard/waiter", label: "Availability", icon: CalendarCheck },
   ],
   supervisor: [
@@ -60,6 +69,9 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
   ],
   accountant: [
     { href: "/dashboard/accountant", label: "Accounting", icon: Calculator },
+  ],
+  'operational-manager': [
+      { href: "/dashboard/operational-manager", label: "Operations", icon: Shield },
   ],
   admin: [
     { href: "/dashboard/admin", label: "Admin Dashboard", icon: Shield },
@@ -84,7 +96,7 @@ export function DashboardSidebarContent({ role }: DashboardSidebarContentProps) 
             </div>
             <div className="flex flex-col">
                 <h2 className="text-lg font-semibold text-sidebar-foreground">EventPro</h2>
-                <p className="text-xs text-sidebar-foreground/70 -mt-1">{capitalize(role)} View</p>
+                <p className="text-xs text-sidebar-foreground/70 -mt-1">{capitalize(role.replace('-', ' '))} View</p>
             </div>
         </div>
       </SidebarHeader>

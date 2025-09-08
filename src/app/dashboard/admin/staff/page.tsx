@@ -55,14 +55,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 const staffSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
-  role: z.enum(['waiter', 'supervisor', 'sales', 'hr', 'accountant', 'admin']),
+  role: z.enum(['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin']),
 });
 
 export type Staff = {
   id: string;
   name: string;
   phone: string;
-  role: 'waiter' | 'supervisor' | 'sales' | 'hr' | 'accountant' | 'admin';
+  role: 'waiter-steward' | 'supervisor' | 'pro' | 'senior-pro' | 'captain-butler' | 'operational-manager' | 'sales' | 'hr' | 'accountant' | 'admin';
 };
 
 export default function AdminStaffPage() {
@@ -75,7 +75,7 @@ export default function AdminStaffPage() {
 
     const form = useForm<z.infer<typeof staffSchema>>({
         resolver: zodResolver(staffSchema),
-        defaultValues: { name: "", phone: "", role: "waiter" },
+        defaultValues: { name: "", phone: "", role: "waiter-steward" },
     });
 
     useEffect(() => {
@@ -98,7 +98,7 @@ export default function AdminStaffPage() {
     
     const openDialogForNew = () => {
         setEditingStaff(null);
-        form.reset({ name: "", phone: "", role: "waiter" });
+        form.reset({ name: "", phone: "", role: "waiter-steward" });
         setIsDialogOpen(true);
     }
 
@@ -288,8 +288,12 @@ export default function AdminStaffPage() {
                                                     <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="waiter">Waiter / Staff</SelectItem>
+                                                    <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
                                                     <SelectItem value="supervisor">Supervisor</SelectItem>
+                                                    <SelectItem value="pro">PRO</SelectItem>
+                                                    <SelectItem value="senior-pro">Senior PRO</SelectItem>
+                                                    <SelectItem value="captain-butler">Captain / Butler</SelectItem>
+                                                    <SelectItem value="operational-manager">Operational Manager</SelectItem>
                                                     <SelectItem value="sales">Sales</SelectItem>
                                                     <SelectItem value="hr">Human Resources</SelectItem>
                                                     <SelectItem value="accountant">Accountant</SelectItem>

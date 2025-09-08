@@ -41,14 +41,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { capitalize } from '@/lib/utils';
 
 const userSchema = z.object({
-  role: z.enum(['consumer', 'waiter', 'supervisor', 'sales', 'hr', 'accountant', 'admin']),
+  role: z.enum(['consumer', 'waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler', 'operational-manager', 'sales', 'hr', 'accountant', 'admin']),
 });
 
 export type User = {
   id: string;
   name: string;
   phone: string;
-  role: 'consumer' | 'waiter' | 'supervisor' | 'sales' | 'hr' | 'accountant' | 'admin';
+  role: 'consumer' |'waiter-steward' | 'supervisor' | 'pro' | 'senior-pro' | 'captain-butler' | 'operational-manager' | 'sales' | 'hr' | 'accountant' | 'admin';
 };
 
 export default function AdminUsersPage() {
@@ -128,7 +128,7 @@ export default function AdminUsersPage() {
             <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.name}</TableCell>
                 <TableCell>{user.phone}</TableCell>
-                <TableCell>{capitalize(user.role)}</TableCell>
+                <TableCell>{capitalize(user.role.replace('-', ' '))}</TableCell>
                 <TableCell className="text-right space-x-2">
                     <Button variant="outline" size="sm" onClick={() => openDialogForEdit(user)}>
                         <Edit className="mr-2 h-4 w-4"/> Edit Role
@@ -164,8 +164,12 @@ export default function AdminUsersPage() {
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="consumer">Client / Consumer</SelectItem>
-                                                <SelectItem value="waiter">Waiter / Staff</SelectItem>
+                                                <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
                                                 <SelectItem value="supervisor">Supervisor</SelectItem>
+                                                <SelectItem value="pro">PRO</SelectItem>
+                                                <SelectItem value="senior-pro">Senior PRO</SelectItem>
+                                                <SelectItem value="captain-butler">Captain / Butler</SelectItem>
+                                                <SelectItem value="operational-manager">Operational Manager</SelectItem>
                                                 <SelectItem value="sales">Sales</SelectItem>
                                                 <SelectItem value="hr">Human Resources</SelectItem>
                                                 <SelectItem value="accountant">Accountant</SelectItem>

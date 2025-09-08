@@ -100,7 +100,7 @@ export default function SignupStaffPage() {
                 uid: user.uid,
                 name,
                 phone: fullPhoneNumber,
-                role: 'waiter', // Default role for staff signup
+                role: 'waiter-steward', // Default role for staff signup
                 createdAt: new Date(),
             };
             await setDoc(doc(db, "users", user.uid), userDoc);
