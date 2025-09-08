@@ -59,7 +59,7 @@ export default function SalesDashboardPage() {
     });
     
     useEffect(() => {
-        const q = query(collection(db, "users"), where("role", "==", "consumer"), orderBy("createdAt", "desc"));
+        const q = query(collection(db, "users"), where("role", "==", "consumer"));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const clientList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
             setClients(clientList);
