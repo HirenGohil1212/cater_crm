@@ -46,26 +46,17 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/consumer/billing", label: "Billing", icon: FileText },
     { href: "/dashboard/consumer/support", label: "Support", icon: LifeBuoy },
   ],
-  'waiter-steward': [
-    { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
-  ],
-  'pro': [
-    { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
-  ],
-  'senior-pro': [
-    { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
-  ],
-  'captain-butler': [
+  'waiter': [
     { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
   ],
   supervisor: [
     { href: "/dashboard/supervisor", label: "Staff Location", icon: MapPin },
   ],
   sales: [
-    { href: "/dashboard/sales", label: "Client Management", icon: Building2 },
+    { href: "/dashboard/sales", label: "Sales Dashboard", icon: TrendingUp },
   ],
   hr: [
-    { href: "/dashboard/hr", label: "Staff Agreements", icon: Clipboard },
+    { href: "/dashboard/hr", label: "HR Dashboard", icon: Users },
   ],
   accountant: [
     { href: "/dashboard/accountant", label: "Accounting", icon: Calculator },
@@ -85,7 +76,12 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
 
 export function DashboardSidebarContent({ role }: DashboardSidebarContentProps) {
   const pathname = usePathname();
-  const currentNavItems = navItems[role as keyof typeof navItems] || [];
+  
+  // Handle different waiter roles by mapping them to a single 'waiter' key
+  const waiterRoles = ['waiter-steward', 'pro', 'senior-pro', 'captain-butler'];
+  const navRole = waiterRoles.includes(role) ? 'waiter' : role;
+
+  const currentNavItems = navItems[navRole as keyof typeof navItems] || [];
 
   return (
     <>
@@ -106,7 +102,7 @@ export function DashboardSidebarContent({ role }: DashboardSidebarContentProps) 
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} passHref>
                 <SidebarMenuButton
-                  isActive={pathname.startsWith(item.href) && (item.href !== '/dashboard/admin' || pathname === '/dashboard/admin')}
+                  isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')}
                   tooltip={item.label}
                 >
                   <item.icon />
