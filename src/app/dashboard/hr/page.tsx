@@ -2,6 +2,9 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import {
   Table,
   TableBody,
@@ -29,12 +32,32 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from "@/components/ui/button";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { FileText, Download, Loader2, BookUser, ClipboardCheck, Users } from "lucide-react";
+import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
+import { collection, onSnapshot, query, orderBy, setDoc, doc } from "firebase/firestore";
+import { signInWithPhoneNumber, RecaptchaVerifier, linkWithCredential, EmailAuthProvider, signOut } from "firebase/auth";
+import { FileText, Download, Loader2, BookUser, ClipboardCheck, PlusCircle } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
+import { Textarea } from '@/components/ui/textarea';
+import { OtpInput } from '@/components/otp-input';
+
+type ConfirmationResult = any;
+
+const staffSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters."),
+  phone: z.string().length(10, "Please enter a valid 10-digit phone number."),
+  role: z.enum(['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler']),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  address: z.string().min(10, "Address is required."),
+  idNumber: z.string().min(10, "Aadhar or PAN number is required."),
+  staffType: z.enum(['individual', 'group-leader', 'outsourced']),
+  bankAccountNumber: z.string().optional(),
+  bankIfscCode: z.string().optional(),
+});
 
 function PlaceholderTab({ title, icon: Icon }: { title: string, icon: React.ElementType }) {
     return (
@@ -58,7 +81,19 @@ function AgreementsTab() {
     const [staff, setStaff] = useState<Staff[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
+    const [isAddStaffDialogOpen, setIsAddStaffDialogOpen] = useState(false);
+    
+    // Add Staff Form State
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [step, setStep] = useState<'details' | 'otp'>('details');
+    const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+    
+    const form = useForm<z.infer<typeof staffSchema>>({
+        resolver: zodResolver(staffSchema),
+        defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" },
+    });
+
 
      useEffect(() => {
         const q = query(collection(db, "staff"), orderBy("name"));
@@ -77,10 +112,115 @@ function AgreementsTab() {
         });
         return () => unsubscribe();
     }, [toast]);
+    
+     useEffect(() => {
+        if (isAddStaffDialogOpen) {
+             setupRecaptcha();
+        } else {
+            // Reset state when dialog closes
+            form.reset({ name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" });
+            setStep('details');
+            setConfirmationResult(null);
+        }
+    }, [isAddStaffDialogOpen, form]);
 
     const handleGenerateClick = (member: Staff) => {
         setSelectedStaff(member);
-        setIsDialogOpen(true);
+        setIsAgreementDialogOpen(true);
+    }
+    
+     const setupRecaptcha = () => {
+        if (!auth) return;
+        if (!window.recaptchaVerifier) {
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-hr', {
+                'size': 'invisible',
+            });
+        }
+    };
+    
+    async function onDetailsSubmit(values: z.infer<typeof staffSchema>) {
+        setIsSubmitting(true);
+        const appVerifier = window.recaptchaVerifier;
+        const fullPhoneNumber = `+91${values.phone}`;
+
+        try {
+            // Temporarily sign out admin/hr to not interfere with phone linking
+            const currentUser = auth.currentUser;
+            if (currentUser) await signOut(auth);
+
+            const result = await signInWithPhoneNumber(auth, fullPhoneNumber, appVerifier);
+            setConfirmationResult(result);
+            setStep('otp');
+            toast({ title: "OTP Sent", description: "Please ask the staff member for the verification code." });
+        } catch (error: any) {
+             console.error("Error sending OTP:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error sending OTP',
+                description: error.message || 'Could not send verification code. Please try again.',
+            });
+             if (window.recaptchaVerifier) {
+                window.recaptchaVerifier.render().then((widgetId: any) => {
+                    grecaptcha.reset(widgetId);
+                });
+            }
+        } finally {
+             setIsSubmitting(false);
+        }
+    }
+    
+    async function onOtpSubmit(otp: string) {
+        if (!confirmationResult) return;
+        setIsSubmitting(true);
+        const { name, phone, password, role, address, idNumber, staffType, bankAccountNumber, bankIfscCode } = form.getValues();
+        const fullPhoneNumber = `+91${phone}`;
+        const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
+
+        try {
+            const userCredential = await confirmationResult.confirm(otp);
+            const user = userCredential.user;
+
+            const emailCredential = EmailAuthProvider.credential(dummyEmail, password);
+            await linkWithCredential(user, emailCredential);
+
+            const sharedData = {
+                uid: user.uid,
+                name,
+                phone: fullPhoneNumber,
+                role,
+            };
+
+            const staffData = {
+                ...sharedData,
+                address,
+                idNumber,
+                staffType,
+                bankAccountNumber: bankAccountNumber || '',
+                bankIfscCode: bankIfscCode || '',
+            };
+
+            await setDoc(doc(db, "staff", user.uid), staffData);
+            await setDoc(doc(db, "users", user.uid), sharedData);
+            
+            await signOut(auth);
+
+            toast({ title: "Staff Added", description: `${name} has been added.` });
+            setIsAddStaffDialogOpen(false);
+        } catch (error: any) {
+             console.error("Error during OTP confirmation or account creation:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Staff Creation Failed',
+                description: error.message || "An unknown error occurred.",
+            });
+        } finally {
+            setIsSubmitting(false);
+            toast({
+                title: "Action Required",
+                description: "For security, you may have been logged out. Please log in again if you face issues.",
+                duration: 5000,
+            });
+        }
     }
     
     const renderTableBody = () => {
@@ -111,14 +251,144 @@ function AgreementsTab() {
             </TableRow>
         ));
     }
+    
+    const renderNewStaffDialogContent = () => {
+        if (step === 'otp') {
+            return (
+                <>
+                 <DialogHeader>
+                    <DialogTitle>Verify Phone Number</DialogTitle>
+                    <DialogDescription>
+                        Enter the OTP sent to the new staff member's phone.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col items-center gap-6 py-4">
+                    <OtpInput length={6} onComplete={onOtpSubmit} disabled={isSubmitting} />
+                    <Button onClick={() => onDetailsSubmit(form.getValues())} variant="link" size="sm" disabled={isSubmitting}>
+                        Resend OTP
+                    </Button>
+                </div>
+                </>
+            )
+        }
+
+        return (
+             <Form {...form}>
+                <form onSubmit={form.handleSubmit(onDetailsSubmit)} className="space-y-4">
+                    <DialogHeader>
+                        <DialogTitle>Add New Staff Member</DialogTitle>
+                        <DialogDescription>
+                            Fill in the details to create a new staff profile. An OTP will be sent to their phone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="name" render={({ field }) => (
+                            <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="phone" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Phone Number</FormLabel>
+                                <FormControl>
+                                    <div className="flex items-center">
+                                        <span className="inline-flex items-center px-3 h-10 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">
+                                            +91
+                                        </span>
+                                        <Input 
+                                            type="tel"
+                                            maxLength={10}
+                                            className="rounded-l-none" 
+                                            placeholder="9876543210" 
+                                            {...field}
+                                        />
+                                    </div>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}/>
+                    </div>
+                     <FormField control={form.control} name="address" render={({ field }) => (
+                        <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea placeholder="123 Main St, Anytown..." {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                     <FormField control={form.control} name="idNumber" render={({ field }) => (
+                        <FormItem><FormLabel>Aadhar / PAN Number</FormLabel><FormControl><Input placeholder="XXXXXXXXXXXX" {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="password" render={({ field }) => (
+                            <FormItem><FormLabel>Initial Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="role" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Role</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="waiter-steward">Waiter / Steward</SelectItem>
+                                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                                        <SelectItem value="pro">PRO</SelectItem>
+                                        <SelectItem value="senior-pro">Senior PRO</SelectItem>
+                                        <SelectItem value="captain-butler">Captain / Butler</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}/>
+                    </div>
+                     <FormField control={form.control} name="staffType" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Staff Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="individual">Individual (In-House)</SelectItem>
+                                    <SelectItem value="group-leader">Group Leader</SelectItem>
+                                    <SelectItem value="outsourced">Outsourced</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                     <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="bankAccountNumber" render={({ field }) => (
+                            <FormItem><FormLabel>Bank Account Number</FormLabel><FormControl><Input placeholder="1234567890" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="bankIfscCode" render={({ field }) => (
+                            <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                     </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline" onClick={() => setIsAddStaffDialogOpen(false)}>Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+                            {isSubmitting ? 'Sending...' : 'Send OTP'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        )
+    };
 
 
     return (
         <>
             <Card>
-                <CardHeader>
-                    <CardTitle>Digital Staff Agreements</CardTitle>
-                    <CardDescription>Generate and manage employment agreements for all staff members.</CardDescription>
+                <div id="recaptcha-container-hr"></div>
+                <CardHeader className='flex-row items-center justify-between'>
+                    <div>
+                        <CardTitle>Digital Staff Agreements</CardTitle>
+                        <CardDescription>Generate and manage employment agreements for all staff members.</CardDescription>
+                    </div>
+                    <Dialog open={isAddStaffDialogOpen} onOpenChange={setIsAddStaffDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button><PlusCircle className="mr-2 h-4 w-4"/> Add New Staff</Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-2xl">
+                          {renderNewStaffDialogContent()}
+                        </DialogContent>
+                    </Dialog>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -137,7 +407,7 @@ function AgreementsTab() {
                 </CardContent>
             </Card>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
             <DialogContent className="sm:max-w-3xl">
                 {selectedStaff && (
                     <>
