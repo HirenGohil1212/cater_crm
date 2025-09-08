@@ -63,6 +63,9 @@ const staffBaseSchema = z.object({
   staffType: z.enum(['individual', 'group-leader', 'outsourced']),
   bankAccountNumber: z.string().optional(),
   bankIfscCode: z.string().optional(),
+  paymentType: z.enum(['per-event', 'salaried']).optional(),
+  perEventCharge: z.coerce.number().optional(),
+  monthlySalary: z.coerce.number().optional(),
 });
 
 const staffSchema = staffBaseSchema.extend({
@@ -85,6 +88,9 @@ export type Staff = {
   staffType: 'individual' | 'group-leader' | 'outsourced';
   bankAccountNumber?: string;
   bankIfscCode?: string;
+  paymentType?: 'per-event' | 'salaried';
+  perEventCharge?: number;
+  monthlySalary?: number;
 };
 
 declare global {
@@ -112,6 +118,9 @@ export default function AdminStaffPage() {
     const editForm = useForm<z.infer<typeof editStaffSchema>>({
         resolver: zodResolver(editStaffSchema),
     });
+
+    const paymentType = form.watch('paymentType');
+    const editPaymentType = editForm.watch('paymentType');
 
     useEffect(() => {
         const q = query(collection(db, "staff"), orderBy("name"));
@@ -165,7 +174,7 @@ export default function AdminStaffPage() {
         setIsSubmitting(true);
         try {
             const staffDocRef = doc(db, "staff", editingStaff.id);
-            const dataToUpdate = {
+            const dataToUpdate: any = {
                 name: values.name,
                 role: values.role,
                 address: values.address,
@@ -173,7 +182,16 @@ export default function AdminStaffPage() {
                 staffType: values.staffType,
                 bankAccountNumber: values.bankAccountNumber,
                 bankIfscCode: values.bankIfscCode,
+                paymentType: values.paymentType,
             };
+
+            if (values.paymentType === 'per-event') {
+                dataToUpdate.perEventCharge = values.perEventCharge || 0;
+                dataToUpdate.monthlySalary = 0;
+            } else if (values.paymentType === 'salaried') {
+                dataToUpdate.monthlySalary = values.monthlySalary || 0;
+                dataToUpdate.perEventCharge = 0;
+            }
 
             await updateDoc(staffDocRef, dataToUpdate);
             
@@ -232,39 +250,47 @@ export default function AdminStaffPage() {
     async function onOtpSubmit(otp: string) {
         if (!confirmationResult) return;
         setIsSubmitting(true);
-        const { name, phone, password, role, address, idNumber, staffType, bankAccountNumber, bankIfscCode } = form.getValues();
-        const fullPhoneNumber = `+91${phone}`;
+        const values = form.getValues();
+        const fullPhoneNumber = `+91${values.phone}`;
         const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
 
         try {
             const userCredential = await confirmationResult.confirm(otp);
             const user = userCredential.user;
 
-            const emailCredential = EmailAuthProvider.credential(dummyEmail, password);
+            const emailCredential = EmailAuthProvider.credential(dummyEmail, values.password);
             await linkWithCredential(user, emailCredential);
 
             const sharedData = {
                 uid: user.uid,
-                name,
+                name: values.name,
                 phone: fullPhoneNumber,
-                role,
+                role: values.role,
             };
 
-            const staffData = {
+            const staffData: any = {
                 ...sharedData,
-                address,
-                idNumber,
-                staffType,
-                bankAccountNumber: bankAccountNumber || '',
-                bankIfscCode: bankIfscCode || '',
+                address: values.address,
+                idNumber: values.idNumber,
+                staffType: values.staffType,
+                bankAccountNumber: values.bankAccountNumber || '',
+                bankIfscCode: values.bankIfscCode || '',
+                paymentType: values.paymentType,
             };
+
+             if (values.paymentType === 'per-event') {
+                staffData.perEventCharge = values.perEventCharge || 0;
+            } else if (values.paymentType === 'salaried') {
+                staffData.monthlySalary = values.monthlySalary || 0;
+            }
+
 
             await setDoc(doc(db, "staff", user.uid), staffData);
             await setDoc(doc(db, "users", user.uid), sharedData);
             
             await signOut(auth);
 
-            toast({ title: "Staff Added", description: `${name} has been added.` });
+            toast({ title: "Staff Added", description: `${values.name} has been added.` });
             setIsDialogOpen(false);
         } catch (error: any) {
              console.error("Error during OTP confirmation or account creation:", error);
@@ -451,6 +477,31 @@ export default function AdminStaffPage() {
                             <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
                         )}/>
                      </div>
+                      <FormField control={form.control} name="paymentType" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Payment Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a payment type" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="per-event">Per Event</SelectItem>
+                                    <SelectItem value="salaried">Salaried</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                    {paymentType === 'per-event' && (
+                         <FormField control={form.control} name="perEventCharge" render={({ field }) => (
+                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
+                     {paymentType === 'salaried' && (
+                         <FormField control={form.control} name="monthlySalary" render={({ field }) => (
+                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -554,6 +605,31 @@ export default function AdminStaffPage() {
                             <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
                         )}/>
                      </div>
+                     <FormField control={editForm.control} name="paymentType" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Payment Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a payment type" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="per-event">Per Event</SelectItem>
+                                    <SelectItem value="salaried">Salaried</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                    {editPaymentType === 'per-event' && (
+                         <FormField control={editForm.control} name="perEventCharge" render={({ field }) => (
+                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
+                     {editPaymentType === 'salaried' && (
+                         <FormField control={editForm.control} name="monthlySalary" render={({ field }) => (
+                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -603,3 +679,5 @@ export default function AdminStaffPage() {
         </Card>
     );
 }
+
+    

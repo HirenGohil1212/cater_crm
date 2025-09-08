@@ -57,6 +57,9 @@ const staffSchema = z.object({
   staffType: z.enum(['individual', 'group-leader', 'outsourced']),
   bankAccountNumber: z.string().optional(),
   bankIfscCode: z.string().optional(),
+  paymentType: z.enum(['per-event', 'salaried']).optional(),
+  perEventCharge: z.coerce.number().optional(),
+  monthlySalary: z.coerce.number().optional(),
 });
 
 function PlaceholderTab({ title, icon: Icon }: { title: string, icon: React.ElementType }) {
@@ -93,6 +96,8 @@ function AgreementsTab() {
         resolver: zodResolver(staffSchema),
         defaultValues: { name: "", phone: "", role: "waiter-steward", password: "", address: "", idNumber: "", staffType: "individual" },
     });
+    
+    const paymentType = form.watch('paymentType');
 
 
      useEffect(() => {
@@ -172,39 +177,46 @@ function AgreementsTab() {
     async function onOtpSubmit(otp: string) {
         if (!confirmationResult) return;
         setIsSubmitting(true);
-        const { name, phone, password, role, address, idNumber, staffType, bankAccountNumber, bankIfscCode } = form.getValues();
-        const fullPhoneNumber = `+91${phone}`;
+        const values = form.getValues();
+        const fullPhoneNumber = `+91${values.phone}`;
         const dummyEmail = `${fullPhoneNumber}@${DUMMY_EMAIL_DOMAIN}`;
 
         try {
             const userCredential = await confirmationResult.confirm(otp);
             const user = userCredential.user;
 
-            const emailCredential = EmailAuthProvider.credential(dummyEmail, password);
+            const emailCredential = EmailAuthProvider.credential(dummyEmail, values.password);
             await linkWithCredential(user, emailCredential);
 
             const sharedData = {
                 uid: user.uid,
-                name,
+                name: values.name,
                 phone: fullPhoneNumber,
-                role,
+                role: values.role,
             };
 
-            const staffData = {
+            const staffData: any = {
                 ...sharedData,
-                address,
-                idNumber,
-                staffType,
-                bankAccountNumber: bankAccountNumber || '',
-                bankIfscCode: bankIfscCode || '',
+                address: values.address,
+                idNumber: values.idNumber,
+                staffType: values.staffType,
+                bankAccountNumber: values.bankAccountNumber || '',
+                bankIfscCode: values.bankIfscCode || '',
+                paymentType: values.paymentType,
             };
+
+            if (values.paymentType === 'per-event') {
+                staffData.perEventCharge = values.perEventCharge || 0;
+            } else if (values.paymentType === 'salaried') {
+                staffData.monthlySalary = values.monthlySalary || 0;
+            }
 
             await setDoc(doc(db, "staff", user.uid), staffData);
             await setDoc(doc(db, "users", user.uid), sharedData);
             
             await signOut(auth);
 
-            toast({ title: "Staff Added", description: `${name} has been added.` });
+            toast({ title: "Staff Added", description: `${values.name} has been added.` });
             setIsAddStaffDialogOpen(false);
         } catch (error: any) {
              console.error("Error during OTP confirmation or account creation:", error);
@@ -359,6 +371,31 @@ function AgreementsTab() {
                             <FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input placeholder="ABCD0123456" {...field} /></FormControl><FormMessage /></FormItem>
                         )}/>
                      </div>
+                      <FormField control={form.control} name="paymentType" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Payment Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a payment type" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="per-event">Per Event</SelectItem>
+                                    <SelectItem value="salaried">Salaried</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                    {paymentType === 'per-event' && (
+                         <FormField control={form.control} name="perEventCharge" render={({ field }) => (
+                            <FormItem><FormLabel>Per Event Charge</FormLabel><FormControl><Input type="number" placeholder="e.g., 1500" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
+                     {paymentType === 'salaried' && (
+                         <FormField control={form.control} name="monthlySalary" render={({ field }) => (
+                            <FormItem><FormLabel>Monthly Salary</FormLabel><FormControl><Input type="number" placeholder="e.g., 30000" {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                    )}
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline" onClick={() => setIsAddStaffDialogOpen(false)}>Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
@@ -436,14 +473,25 @@ function AgreementsTab() {
                                 <p>The Staff Member is employed in the position of <strong className="text-foreground">{selectedStaff.role}</strong>.</p>
                             </div>
                              <div className="space-y-2">
-                                <h4 className="font-semibold text-base">3. Banking Information</h4>
+                                <h4 className="font-semibold text-base">3. Compensation</h4>
+                                 <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
+                                    <li><strong>Payment Type:</strong> <span className="text-foreground">{selectedStaff.paymentType === 'salaried' ? 'Salaried' : 'Per Event'}</span></li>
+                                     {selectedStaff.paymentType === 'salaried' ? (
+                                        <li><strong>Monthly Salary:</strong> <span className="text-foreground">₹{selectedStaff.monthlySalary?.toLocaleString() || 'N/A'}</span></li>
+                                     ) : (
+                                        <li><strong>Per Event Charge:</strong> <span className="text-foreground">₹{selectedStaff.perEventCharge?.toLocaleString() || 'N/A'}</span></li>
+                                     )}
+                                </ul>
+                            </div>
+                             <div className="space-y-2">
+                                <h4 className="font-semibold text-base">4. Banking Information</h4>
                                 <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
                                     <li><strong>Bank Account Number:</strong> <span className="text-foreground">{selectedStaff.bankAccountNumber || 'N/A'}</span></li>
                                     <li><strong>IFSC Code:</strong> <span className="text-foreground">{selectedStaff.bankIfscCode || 'N/A'}</span></li>
                                 </ul>
                             </div>
                             
-                            <p>... Additional clauses for Duties, Compensation, etc. would go here ...</p>
+                            <p>... Additional clauses for Duties, etc. would go here ...</p>
                             
                             <p className="pt-4">This document is legally binding upon signature. Please review carefully.</p>
                             
@@ -505,3 +553,5 @@ export default function HRDashboardPage() {
         </Tabs>
     );
 }
+
+    
