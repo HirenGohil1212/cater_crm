@@ -28,10 +28,11 @@ import { useToast } from "@/hooks/use-toast";
 import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
 import { collection, onSnapshot, addDoc, doc, setDoc, query, where, orderBy } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { UserPlus, Loader2, Users, FileText, Building2 } from "lucide-react";
+import { UserPlus, Loader2, Users, FileText, Building2, CheckSquare } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { StaffListTable } from '@/components/staff-list-table';
+import { BillingReviewTable } from '@/components/billing-review-table';
 
 const newClientSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -257,8 +258,9 @@ export default function SalesDashboardPage() {
                     <CardDescription>Manage clients, check staff availability, and create agreements.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <TabsList className="grid w-full grid-cols-3">
+                     <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="clients"><Building2 className="mr-2 h-4 w-4" />Client Management</TabsTrigger>
+                        <TabsTrigger value="review"><CheckSquare className="mr-2 h-4 w-4" />Billing Review</TabsTrigger>
                         <TabsTrigger value="availability"><Users className="mr-2 h-4 w-4" />Staff Availability</TabsTrigger>
                         <TabsTrigger value="agreements"><FileText className="mr-2 h-4 w-4" />Client Agreements</TabsTrigger>
                     </TabsList>
@@ -274,6 +276,17 @@ export default function SalesDashboardPage() {
                         <ClientList key={key} />
                     </div>
                 </div>
+            </TabsContent>
+            <TabsContent value="review" className="mt-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Event Billing Review</CardTitle>
+                        <CardDescription>Review completed events before they are sent to accounting.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <BillingReviewTable />
+                    </CardContent>
+                </Card>
             </TabsContent>
             <TabsContent value="availability" className="mt-4">
                 <Card>
