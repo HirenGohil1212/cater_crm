@@ -37,7 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, setDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, setDoc, doc, where } from "firebase/firestore";
 import { signInWithPhoneNumber, RecaptchaVerifier, linkWithCredential, EmailAuthProvider, signOut } from "firebase/auth";
 import { FileText, Download, Loader2, BookUser, ClipboardCheck, PlusCircle } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -100,7 +100,8 @@ function AgreementsTab() {
 
 
      useEffect(() => {
-        const q = query(collection(db, "staff"), orderBy("name"));
+        const waiterRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler'];
+        const q = query(collection(db, "staff"), where('role', 'in', waiterRoles), orderBy("name"));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const staffList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff));
             setStaff(staffList);
