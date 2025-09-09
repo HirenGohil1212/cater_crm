@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,6 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+
 import {
   Table,
   TableBody,
@@ -45,7 +46,7 @@ import { FileText, Download, Loader2, BookUser, ClipboardCheck, PlusCircle, Uten
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
 import { Textarea } from '@/components/ui/textarea';
-import { OtpInput } from '@/components/ui/otp-input';
+import { OtpInput } from '@/components/otp-input';
 import { Separator } from '@/components/ui/separator';
 
 
@@ -169,113 +170,51 @@ function AgreementsTab() {
         }
     };
 
-    const handleDownloadPdf = (staff: Staff) => {
-        const doc = new jsPDF();
-        
-        const primaryColor = "#4A5568"; // Corresponds to text-primary
-        const mutedColor = "#718096";   // Corresponds to text-muted-foreground
-        const blackColor = "#000000";
-        const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-        const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
-        const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
-        
-        let yPos = 20;
+    const handleDownloadPdf = async () => {
+        const content = agreementContentRef.current;
+        if (!content || !selectedStaff) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Cannot find content to print.' });
+            return;
+        }
 
-        // Header
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(22);
-        doc.setTextColor(primaryColor);
-        doc.text("Employment Agreement", 20, yPos);
-        yPos += 8;
+        try {
+            const canvas = await html2canvas(content, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+            });
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(mutedColor);
-        doc.text(`Date: ${today}`, 20, yPos);
-        yPos += 4;
-        
-        doc.setDrawColor(primaryColor);
-        doc.line(20, yPos, 190, yPos); // Separator
-        yPos += 12;
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'pt',
+                format: 'a4',
+            });
 
-        // Parties
-        doc.setFontSize(14);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(primaryColor);
-        doc.text("Parties", 20, yPos);
-        yPos += 8;
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = canvasWidth / canvasHeight;
 
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(blackColor);
-        doc.text(`Company: Event Staffing Pro`, 25, yPos);
-        yPos += 6;
-        doc.text(`Staff Member: ${staff.name}`, 25, yPos);
-        yPos += 10;
-        doc.line(20, yPos, 190, yPos);
-        yPos += 12;
+            let finalCanvasWidth = pdfWidth;
+            let finalCanvasHeight = pdfWidth / ratio;
+            
+            if (finalCanvasHeight > pdfHeight) {
+                finalCanvasHeight = pdfHeight;
+                finalCanvasWidth = pdfHeight * ratio;
+            }
 
-        // Staff Details
-        doc.setFontSize(14);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(primaryColor);
-        doc.text("Staff Details", 20, yPos);
-        yPos += 8;
+            const x = (pdfWidth - finalCanvasWidth) / 2;
+            const y = (pdfHeight - finalCanvasHeight) / 2;
 
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(blackColor);
-        doc.text(`Address: ${staff.address}`, 25, yPos);
-        doc.text(`Role: ${staff.role}`, 110, yPos);
-        yPos += 6;
-        doc.text(`ID Number: ${staff.idNumber}`, 25, yPos);
-        doc.text(`Bank Account: ${staff.bankAccountNumber || 'N/A'}`, 110, yPos);
-        yPos += 6;
-        doc.text(`IFSC Code: ${staff.bankIfscCode || 'N/A'}`, 25, yPos);
-        yPos += 10;
-        doc.line(20, yPos, 190, yPos);
-        yPos += 12;
-
-
-        // Terms & Conditions
-        doc.setFontSize(14);
-        doc.setTextColor(primaryColor);
-        doc.setFont("helvetica", "bold");
-        doc.text("Terms & Conditions", 20, yPos);
-        yPos += 8;
-
-        doc.setFontSize(11);
-        doc.setTextColor(blackColor);
-        doc.setFont("helvetica", "normal");
-        
-        const terms = [
-            `1. Position: The Staff Member is employed in the position of ${staff.role}.`,
-            `2. Compensation: The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.`,
-            "3. Duties: The Staff Member is expected to perform all duties related to their role as required by the Company for various events.",
-            "4. Confidentiality: The Staff Member agrees to keep all Company information confidential.",
-            "5. Governing Law: This Agreement shall be governed by the laws of India."
-        ];
-        
-        const textOptions = { maxWidth: 165 };
-        terms.forEach(term => {
-            const splitText = doc.splitTextToSize(term, textOptions.maxWidth);
-            doc.text(splitText, 25, yPos);
-            yPos += (splitText.length * 5) + 3;
-        });
-
-        // Footer
-        yPos = 250;
-        doc.setDrawColor(mutedColor);
-        doc.setLineDashPattern([2, 2], 0);
-        doc.line(25, yPos, 85, yPos);
-        doc.line(125, yPos, 185, yPos);
-        
-        doc.setFont("helvetica", "bold");
-        doc.text("Event Staffing Pro", 25, yPos + 5);
-        doc.text(staff.name, 125, yPos + 5);
-        
-        doc.save(`Agreement-${staff.name}.pdf`);
-        toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
+            pdf.addImage(imgData, 'PNG', x, y, finalCanvasWidth, finalCanvasHeight);
+            pdf.save(`Agreement-${selectedStaff.name}.pdf`);
+            toast({ title: 'PDF Downloaded', description: 'The agreement has been saved.' });
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            toast({ variant: 'destructive', title: 'PDF Generation Failed', description: 'An error occurred while creating the PDF.' });
+        }
     };
     
     async function onDetailsSubmit(values: z.infer<typeof staffSchema>) {
@@ -547,9 +486,11 @@ function AgreementsTab() {
                             <UtensilsCrossed className="h-8 w-8 text-primary" />
                         </div>
                     </header>
+                    
+                    <Separator className="my-6" />
 
-                    <section className="mt-8">
-                        <h2 className="text-xl font-semibold text-primary mb-4">Parties</h2>
+                    <section>
+                        <h2 className="text-xl font-semibold text-primary mb-4">PARTIES</h2>
                         <div className="pl-4 text-sm space-y-1">
                             <p><span className="font-semibold">Company:</span> Event Staffing Pro</p>
                             <p><span className="font-semibold">Staff Member:</span> {staff.name}</p>
@@ -559,7 +500,7 @@ function AgreementsTab() {
                     <Separator className="my-6" />
 
                     <section>
-                        <h2 className="text-xl font-semibold text-primary mb-4">Staff Details</h2>
+                        <h2 className="text-xl font-semibold text-primary mb-4">STAFF DETAILS</h2>
                         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
                             <div><span className="font-semibold">Address:</span> {staff.address}</div>
                             <div><span className="font-semibold">Role:</span> {staff.role}</div>
@@ -572,9 +513,9 @@ function AgreementsTab() {
                     <Separator className="my-6" />
 
                     <section className="text-sm space-y-4">
-                        <h2 className="text-xl font-semibold text-primary mb-4">Terms & Conditions</h2>
+                        <h2 className="text-xl font-semibold text-primary mb-4">TERMS & CONDITIONS</h2>
                         <div className="space-y-3 pl-4">
-                             <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
+                            <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
                             <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of ₹{compensationAmount}.</p>
                             <p><strong>3. Duties:</strong> The Staff Member is expected to perform all duties related to their role as required by the Company for various events.</p>
                             <p><strong>4. Confidentiality:</strong> The Staff Member agrees to keep all Company information confidential.</p>
@@ -651,7 +592,7 @@ function AgreementsTab() {
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
-                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => handleDownloadPdf(selectedStaff)}>
+                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleDownloadPdf}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Download as PDF
                             </Button>
@@ -833,3 +774,5 @@ declare global {
         confirmationResult: any;
     }
 }
+
+    
