@@ -41,6 +41,8 @@ import { AvailabilityTab } from "@/components/availability-tab";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { onAuthStateChanged, User } from 'firebase/auth';
+
 
 type Staff = {
   id: string;
@@ -240,13 +242,22 @@ function TeamManagementTab() {
 function EventManagementTab() {
     const [events, setEvents] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
+    const [authLoading, setAuthLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const { toast } = useToast();
-    const user = auth.currentUser;
+    const [user, setUser] = useState<User | null>(null);
 
     useEffect(() => {
-        if (!user) {
-            setLoading(false);
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setUser(user);
+        setAuthLoading(false);
+      });
+      return () => unsubscribe();
+    }, []);
+
+    useEffect(() => {
+        if (authLoading || !user) {
+            if (!authLoading) setLoading(false);
             return;
         }
 
@@ -282,7 +293,7 @@ function EventManagementTab() {
 
         return () => unsubscribe();
 
-    }, [user]);
+    }, [user, authLoading]);
 
     const handleEndEvent = async (orderId: string) => {
         setIsUpdating(orderId);
@@ -309,7 +320,7 @@ function EventManagementTab() {
 
 
     const renderContent = () => {
-        if (loading) {
+        if (loading || authLoading) {
             return (
                  <Table>
                     <TableHeader>
@@ -389,10 +400,12 @@ function EventManagementTab() {
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                            </AlertDialog>
-                           <Button 
+                            <Button 
                              size="sm" 
                              variant="outline"
-                             onClick={() => handleEndEvent(event.id)}>
+                             onClick={() => handleEndEvent(event.id)}
+                             disabled={isUpdating === event.id}
+                           >
                                 Test End
                            </Button>
                         </TableCell>
