@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Table,
@@ -21,8 +21,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, DocumentData } from "firebase/firestore";
-import { PlusCircle, MinusCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { collection, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, DocumentData, query } from "firebase/firestore";
+import { PlusCircle, MinusCircle, ArrowLeft } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { capitalize } from '@/lib/utils';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
@@ -44,9 +44,11 @@ export default function AssignStaffPage() {
 
     const [order, setOrder] = useState<Order | null>(null);
     const [allStaff, setAllStaff] = useState<Staff[]>([]);
+    const [allOrders, setAllOrders] = useState<Order[]>([]);
     const [assignedStaffDetails, setAssignedStaffDetails] = useState<Staff[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingStaff, setLoadingStaff] = useState(true);
+    const [loadingOrders, setLoadingOrders] = useState(true);
 
     // Fetch Order Details
     useEffect(() => {
@@ -64,15 +66,27 @@ export default function AssignStaffPage() {
 
     // Fetch All Staff
     useEffect(() => {
-        const unsub = onSnapshot(collection(db, "staff"), (snapshot) => {
+        const q = query(collection(db, "staff"));
+        const unsub = onSnapshot(q, (snapshot) => {
             const staffList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff));
             setAllStaff(staffList);
             setLoadingStaff(false);
         });
         return () => unsub();
     }, []);
+    
+    // Fetch all orders to check assignments
+    useEffect(() => {
+        const q = query(collection(db, "orders"));
+        const unsub = onSnapshot(q, (snapshot) => {
+            const ordersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+            setAllOrders(ordersList);
+            setLoadingOrders(false);
+        });
+        return () => unsub();
+    }, []);
 
-    // Fetch details of assigned staff
+    // Fetch details of assigned staff for the current order
     useEffect(() => {
         if (!order || !order.assignedStaff || order.assignedStaff.length === 0) {
             setAssignedStaffDetails([]);
@@ -89,8 +103,18 @@ export default function AssignStaffPage() {
         };
 
         fetchDetails();
-
     }, [order]);
+    
+    const staffAssignments = useMemo(() => {
+        const assignments = new Map<string, number>();
+        if (loadingOrders) return assignments;
+
+        allStaff.forEach(staff => {
+            const count = allOrders.filter(o => o.assignedStaff?.includes(staff.id)).length;
+            assignments.set(staff.id, count);
+        });
+        return assignments;
+    }, [allStaff, allOrders, loadingOrders]);
 
 
     const handleAssignStaff = async (staffId: string) => {
@@ -139,6 +163,8 @@ export default function AssignStaffPage() {
         !order.assignedStaff?.includes(staff.id) && waiterRoles.includes(staff.role)
     );
 
+    const isDataLoading = loadingStaff || loadingOrders;
+
     return (
         <div className="space-y-6">
             <div>
@@ -157,12 +183,13 @@ export default function AssignStaffPage() {
                         <CardDescription>Assign staff from the list below to this event.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                         {loadingStaff ? <Skeleton className="h-40 w-full" /> : (
+                         {isDataLoading ? <Skeleton className="h-40 w-full" /> : (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Name</TableHead>
                                         <TableHead>Role</TableHead>
+                                        <TableHead>Current Assignments</TableHead>
                                         <TableHead className="text-right">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -171,6 +198,11 @@ export default function AssignStaffPage() {
                                         <TableRow key={staff.id}>
                                             <TableCell>{staff.name}</TableCell>
                                             <TableCell><Badge variant="secondary">{capitalize(staff.role)}</Badge></TableCell>
+                                            <TableCell className='text-center'>
+                                                <Badge variant={staffAssignments.get(staff.id)! > 0 ? "destructive" : "default"}>
+                                                    {staffAssignments.get(staff.id) || 0}
+                                                </Badge>
+                                            </TableCell>
                                             <TableCell className="text-right">
                                                 <Button size="sm" variant="outline" onClick={() => handleAssignStaff(staff.id)}>
                                                     <PlusCircle className="mr-2 h-4 w-4" />
@@ -181,7 +213,7 @@ export default function AssignStaffPage() {
                                     ))}
                                     {unassignedStaff.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={3} className="text-center text-muted-foreground">All available staff have been assigned.</TableCell>
+                                            <TableCell colSpan={4} className="text-center text-muted-foreground">All available staff have been assigned.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
@@ -191,7 +223,7 @@ export default function AssignStaffPage() {
                 </Card>
                  <Card>
                     <CardHeader>
-                        <CardTitle>Assigned Staff</CardTitle>
+                        <CardTitle>Assigned Staff ({assignedStaffDetails.length})</CardTitle>
                         <CardDescription>Staff members currently assigned to this event.</CardDescription>
                     </CardHeader>
                     <CardContent>
