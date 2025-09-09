@@ -209,7 +209,6 @@ function EventManagementTab() {
                            <Button 
                              size="sm" 
                              variant="outline"
-                             disabled={event.status !== 'Confirmed' || isUpdating === event.id}
                              onClick={() => handleEndEvent(event.id)}>
                                 Test End
                            </Button>
