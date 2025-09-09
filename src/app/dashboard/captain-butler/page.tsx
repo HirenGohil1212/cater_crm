@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, FileClock, Loader2, CalendarCheck, FileEdit, Calculator, Users, Star, ClipboardCheck, UserCheck } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, orderBy, getDocs } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -42,6 +42,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { InvoiceList } from "@/app/dashboard/accountant/page";
 
 
 type Staff = {
@@ -84,10 +85,11 @@ function TeamManagementTab() {
 
     useEffect(() => {
         const subordinateRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro'];
-        const q = query(collection(db, "staff"), where('role', 'in', subordinateRoles), orderBy('name'));
+        const q = query(collection(db, "staff"), where('role', 'in', subordinateRoles));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const staffList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff));
+            staffList.sort((a, b) => a.name.localeCompare(b.name));
             setTeam(staffList);
             setLoading(false);
         }, (error) => {
@@ -400,11 +402,10 @@ function EventManagementTab() {
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                            </AlertDialog>
-                            <Button 
+                           <Button 
                              size="sm" 
                              variant="outline"
                              onClick={() => handleEndEvent(event.id)}
-                             disabled={isUpdating === event.id}
                            >
                                 Test End
                            </Button>
