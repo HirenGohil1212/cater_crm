@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -179,7 +180,7 @@ function AgreementsTab() {
 
         try {
             const canvas = await html2canvas(content, {
-                scale: 2,
+                scale: 2, // Higher scale for better quality
                 backgroundColor: '#ffffff',
                 useCORS: true,
             });
@@ -505,7 +506,7 @@ function AgreementsTab() {
                             <div><span className="font-semibold">Address:</span> {staff.address}</div>
                             <div><span className="font-semibold">Role:</span> {staff.role}</div>
                             <div><span className="font-semibold">ID Number:</span> {staff.idNumber}</div>
-                            <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
+                             <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
                             <div><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</div>
                         </div>
                     </section>
