@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import {
   Table,
   TableBody,
@@ -44,7 +46,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
 import { Textarea } from '@/components/ui/textarea';
 import { OtpInput } from '@/components/otp-input';
-import { generateAgreement } from '@/ai/flows/generate-agreement-flow';
 
 
 type ConfirmationResult = any;
@@ -87,8 +88,8 @@ function AgreementsTab() {
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
     const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
     const [isAddStaffDialogOpen, setIsAddStaffDialogOpen] = useState(false);
-    const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
     const [agreementText, setAgreementText] = useState('');
+    const agreementContentRef = React.useRef<HTMLDivElement>(null);
     
     // Add Staff Form State
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -142,37 +143,65 @@ function AgreementsTab() {
     }, [isAgreementDialogOpen]);
 
 
-    const handleGenerateClick = async (member: Staff) => {
-        setSelectedStaff(member);
-        setIsAgreementDialogOpen(true);
-        setIsGeneratingAgreement(true);
-        try {
-            const compensationAmount = member.staffType === 'salaried' ? member.monthlySalary : member.perEventCharge;
-            const compensationType = member.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
+    const generateAgreementTemplate = (staff: Staff) => {
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
+        const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
 
-            const result = await generateAgreement({
-                staffName: member.name,
-                staffAddress: member.address,
-                staffRole: member.role,
-                staffType: member.staffType,
-                idNumber: member.idNumber,
-                bankAccountNumber: member.bankAccountNumber,
-                bankIfscCode: member.bankIfscCode,
-                compensationAmount: compensationAmount,
-                compensationType: compensationType,
-            });
-            setAgreementText(result.agreementText);
-        } catch (error) {
-            console.error("Error generating agreement:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Agreement Generation Failed',
-                description: 'Could not generate the agreement using AI.',
-            });
-            setAgreementText("Failed to generate agreement. Please try again.");
-        } finally {
-            setIsGeneratingAgreement(false);
-        }
+        return `
+**EMPLOYMENT AGREEMENT**
+
+**Date:** ${today}
+
+**PARTIES:**
+1.  **Event Staffing Pro** ("the Company")
+2.  **${staff.name}** ("the Staff Member")
+
+**STAFF DETAILS:**
+- **Name:** ${staff.name}
+- **Address:** ${staff.address}
+- **Role:** ${staff.role}
+- **ID Number:** ${staff.idNumber}
+- **Bank Account:** ${staff.bankAccountNumber || 'N/A'}
+- **IFSC Code:** ${staff.bankIfscCode || 'N/A'}
+
+**1. POSITION**
+The Staff Member is employed in the position of ${staff.role}.
+
+**2. COMPENSATION**
+The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.
+
+**3. DUTIES AND RESPONSIBILITIES**
+The Staff Member is expected to perform all duties related to the role of ${staff.role} as required by the Company for various events.
+
+**4. TERM OF EMPLOYMENT**
+This is an at-will employment relationship.
+
+**5. CONFIDENTIALITY**
+The Staff Member agrees to keep all Company information confidential.
+
+**6. TERMINATION**
+The Company may terminate this agreement at any time for any reason.
+
+**7. GOVERNING LAW**
+This Agreement shall be governed by the laws of India.
+
+---
+**Signed,**
+
+_________________________
+Event Staffing Pro
+
+_________________________
+${staff.name}
+        `;
+    }
+
+    const handleGenerateClick = (member: Staff) => {
+        setSelectedStaff(member);
+        const agreement = generateAgreementTemplate(member);
+        setAgreementText(agreement);
+        setIsAgreementDialogOpen(true);
     }
     
      const setupRecaptcha = () => {
@@ -182,6 +211,29 @@ function AgreementsTab() {
                 'size': 'invisible',
             });
         }
+    };
+
+    const handleDownloadPdf = () => {
+        const input = agreementContentRef.current;
+        if (!input) return;
+
+        html2canvas(input, { scale: 2 }).then((canvas) => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = canvasWidth / canvasHeight;
+            const width = pdfWidth;
+            const height = width / ratio;
+
+            let position = 0;
+            pdf.addImage(imgData, 'PNG', 0, position, width, height);
+
+            pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
+             toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
+        });
     };
     
     async function onDetailsSubmit(values: z.infer<typeof staffSchema>) {
@@ -478,24 +530,17 @@ function AgreementsTab() {
                         <DialogHeader>
                             <DialogTitle>Staff Agreement: {selectedStaff.name}</DialogTitle>
                             <DialogDescription>
-                                This is a preview of the AI-generated digital agreement. It can be downloaded as a PDF.
+                                This is a preview of the digital agreement. It can be downloaded as a PDF.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4 text-sm border rounded-md p-6 max-h-[60vh] overflow-y-auto bg-muted/30 whitespace-pre-wrap font-mono">
-                           {isGeneratingAgreement ? (
-                               <div className="flex items-center justify-center h-48">
-                                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                   <p className="ml-4 font-sans">Generating agreement...</p>
-                               </div>
-                           ) : (
-                               <p>{agreementText}</p>
-                           )}
+                        <div ref={agreementContentRef} className="space-y-4 text-sm border rounded-md p-6 max-h-[60vh] overflow-y-auto bg-white text-black whitespace-pre-wrap font-mono">
+                           <p>{agreementText}</p>
                         </div>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
-                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Coming Soon!", description: "PDF generation will be implemented soon."})} disabled={isGeneratingAgreement}>
+                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleDownloadPdf}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Download as PDF
                             </Button>
