@@ -45,7 +45,7 @@ import { FileText, Download, Loader2, BookUser, ClipboardCheck, PlusCircle, Uten
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
 import { Textarea } from '@/components/ui/textarea';
-import { OtpInput } from '@/components/otp-input';
+import { OtpInput } from '@/components/ui/otp-input';
 import { Separator } from '@/components/ui/separator';
 
 
@@ -103,6 +103,7 @@ function AgreementsTab() {
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
     const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
     const [isAddStaffDialogOpen, setIsAddStaffDialogOpen] = useState(false);
+    const agreementContentRef = useRef<HTMLDivElement>(null);
     
     // Add Staff Form State
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -535,7 +536,7 @@ function AgreementsTab() {
         const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
         
         return (
-            <div className="bg-white text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
+             <div ref={agreementContentRef} className="bg-white text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
                 <div className="p-8">
                     <header className="flex justify-between items-center pb-4 border-b-2 border-primary">
                         <div>
@@ -548,7 +549,7 @@ function AgreementsTab() {
                     </header>
 
                     <section className="mt-8">
-                        <h2 className="text-xl font-semibold text-primary mb-2">Parties</h2>
+                        <h2 className="text-xl font-semibold text-primary mb-4">Parties</h2>
                         <div className="pl-4 text-sm space-y-1">
                             <p><span className="font-semibold">Company:</span> Event Staffing Pro</p>
                             <p><span className="font-semibold">Staff Member:</span> {staff.name}</p>
@@ -558,7 +559,7 @@ function AgreementsTab() {
                     <Separator className="my-6" />
 
                     <section>
-                        <h2 className="text-xl font-semibold text-primary mb-2">Staff Details</h2>
+                        <h2 className="text-xl font-semibold text-primary mb-4">Staff Details</h2>
                         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
                             <div><span className="font-semibold">Address:</span> {staff.address}</div>
                             <div><span className="font-semibold">Role:</span> {staff.role}</div>
@@ -571,7 +572,7 @@ function AgreementsTab() {
                     <Separator className="my-6" />
 
                     <section className="text-sm space-y-4">
-                        <h2 className="text-xl font-semibold text-primary mb-2">Terms & Conditions</h2>
+                        <h2 className="text-xl font-semibold text-primary mb-4">Terms & Conditions</h2>
                         <div className="space-y-3 pl-4">
                              <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
                             <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of ₹{compensationAmount}.</p>
