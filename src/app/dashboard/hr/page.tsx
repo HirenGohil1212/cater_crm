@@ -198,15 +198,10 @@ function AgreementsTab() {
             const canvasWidth = canvas.width;
             const canvasHeight = canvas.height;
             const canvasAspectRatio = canvasWidth / canvasHeight;
-            const pdfAspectRatio = pdfWidth / pdfHeight;
 
-            let finalImgWidth, finalImgHeight;
+            let finalImgWidth = pdfWidth;
+            let finalImgHeight = finalImgWidth / canvasAspectRatio;
 
-            // Fit by width
-            finalImgWidth = pdfWidth;
-            finalImgHeight = finalImgWidth / canvasAspectRatio;
-            
-            // If height is still too large, fit by height
             if (finalImgHeight > pdfHeight) {
                 finalImgHeight = pdfHeight;
                 finalImgWidth = finalImgHeight * canvasAspectRatio;
@@ -485,8 +480,8 @@ function AgreementsTab() {
         ];
 
         return (
-             <div className='w-[595px] bg-white text-gray-900 font-sans shadow-lg mx-auto aspect-[1/1.414]'>
-                <div ref={agreementContentRef} className="p-10 flex flex-col h-full">
+             <div className="bg-gray-100 p-8">
+                <div ref={agreementContentRef} className="w-[595px] min-h-[842px] bg-white text-gray-900 font-sans shadow-lg mx-auto p-10 flex flex-col">
                     <header className="flex justify-between items-center pb-4 border-b-2 border-gray-800">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-800">Employment Agreement</h1>
@@ -584,32 +579,32 @@ function AgreementsTab() {
             </Card>
 
             <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
-            <DialogContent className="max-w-fit bg-gray-100 p-0 overflow-y-auto">
-                {selectedStaff && (
-                    <>
-                       <DialogHeader className="p-6 pb-0">
-                           <DialogTitle>Agreement for {selectedStaff.name}</DialogTitle>
-                           <DialogDescription>
-                                Preview the employment agreement below. Click Download to save as a PDF.
-                           </DialogDescription>
-                       </DialogHeader>
-                       <div className='p-8 pt-4'>
-                           <AgreementPreview staff={selectedStaff} />
-                       </div>
-                        <DialogFooter className="bg-gray-200/80 p-4 border-t sticky bottom-0">
-                            <DialogClose asChild>
-                                <Button variant="outline">Cancel</Button>
-                            </DialogClose>
-                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleDownloadPdf}>
-                                <Download className="mr-2 h-4 w-4" />
-                                Download as PDF
-                            </Button>
-                        </DialogFooter>
-                    </>
-                )}
-                 {!selectedStaff && <p>No staff member selected.</p>}
-            </DialogContent>
-        </Dialog>
+                <DialogContent className="sm:max-w-3xl p-0">
+                    {selectedStaff && (
+                        <>
+                           <DialogHeader className="p-6 pb-4">
+                               <DialogTitle>Agreement for {selectedStaff.name}</DialogTitle>
+                               <DialogDescription>
+                                    Preview the employment agreement below. Click Download to save as a PDF.
+                               </DialogDescription>
+                           </DialogHeader>
+                           <div className='overflow-y-auto max-h-[70vh]'>
+                                <AgreementPreview staff={selectedStaff} />
+                           </div>
+                            <DialogFooter className="bg-muted/60 p-4 border-t sticky bottom-0">
+                                <DialogClose asChild>
+                                    <Button variant="outline">Cancel</Button>
+                                </DialogClose>
+                                <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleDownloadPdf}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download as PDF
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                     {!selectedStaff && <p>No staff member selected.</p>}
+                </DialogContent>
+            </Dialog>
         </>
     )
 }
