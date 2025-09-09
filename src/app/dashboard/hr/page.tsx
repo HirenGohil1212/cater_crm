@@ -514,10 +514,10 @@ function AgreementsTab() {
                     <Separator className="my-6" />
 
                     <section className="text-sm space-y-4">
-                        <h2 className="text-xl font-semibold text-primary mb-4">TERMS & CONDITIONS</h2>
+                        <h2 className="text-xl font-semibold text-primary mb-4">TERMS &amp; CONDITIONS</h2>
                         <div className="space-y-3 pl-4">
                             <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
-                            <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of ₹{compensationAmount}.</p>
+                            <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of &#8377;{compensationAmount}.</p>
                             <p><strong>3. Duties:</strong> The Staff Member is expected to perform all duties related to their role as required by the Company for various events.</p>
                             <p><strong>4. Confidentiality:</strong> The Staff Member agrees to keep all Company information confidential.</p>
                             <p><strong>5. Governing Law:</strong> This Agreement shall be governed by the laws of India.</p>
@@ -775,5 +775,3 @@ declare global {
         confirmationResult: any;
     }
 }
-
-    
