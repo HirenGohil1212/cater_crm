@@ -39,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, setDoc, doc, where } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, setDoc, doc, where, getDocs } from "firebase/firestore";
 import { signInWithPhoneNumber, RecaptchaVerifier, linkWithCredential, EmailAuthProvider, signOut } from "firebase/auth";
 import { FileText, Download, Loader2, BookUser, ClipboardCheck, PlusCircle } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,6 +49,20 @@ import { OtpInput } from '@/components/otp-input';
 
 
 type ConfirmationResult = any;
+
+const inquirySchema = z.object({
+  status: z.enum(["New", "Contacted", "Hired", "Rejected"]),
+});
+
+
+type Inquiry = {
+    id: string;
+    name: string;
+    phone: string;
+    status: "New" | "Contacted" | "Hired" | "Rejected";
+    createdAt: any;
+}
+
 
 const staffSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -149,52 +163,52 @@ function AgreementsTab() {
         const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
 
         return `
-**EMPLOYMENT AGREEMENT**
+EMPLOYMENT AGREEMENT
 
-**Date:** ${today}
+Date: ${today}
 
-**PARTIES:**
-1.  **Event Staffing Pro** ("the Company")
-2.  **${staff.name}** ("the Staff Member")
+PARTIES:
+1. Event Staffing Pro ("the Company")
+2. ${staff.name} ("the Staff Member")
 
-**STAFF DETAILS:**
-- **Name:** ${staff.name}
-- **Address:** ${staff.address}
-- **Role:** ${staff.role}
-- **ID Number:** ${staff.idNumber}
-- **Bank Account:** ${staff.bankAccountNumber || 'N/A'}
-- **IFSC Code:** ${staff.bankIfscCode || 'N/A'}
+STAFF DETAILS:
+- Name: ${staff.name}
+- Address: ${staff.address}
+- Role: ${staff.role}
+- ID Number: ${staff.idNumber}
+- Bank Account: ${staff.bankAccountNumber || 'N/A'}
+- IFSC Code: ${staff.bankIfscCode || 'N/A'}
 
-**1. POSITION**
+1. POSITION
 The Staff Member is employed in the position of ${staff.role}.
 
-**2. COMPENSATION**
+2. COMPENSATION
 The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.
 
-**3. DUTIES AND RESPONSIBILITIES**
+3. DUTIES AND RESPONSIBILITIES
 The Staff Member is expected to perform all duties related to the role of ${staff.role} as required by the Company for various events.
 
-**4. TERM OF EMPLOYMENT**
+4. TERM OF EMPLOYMENT
 This is an at-will employment relationship.
 
-**5. CONFIDENTIALITY**
+5. CONFIDENTIALITY
 The Staff Member agrees to keep all Company information confidential.
 
-**6. TERMINATION**
+6. TERMINATION
 The Company may terminate this agreement at any time for any reason.
 
-**7. GOVERNING LAW**
+7. GOVERNING LAW
 This Agreement shall be governed by the laws of India.
 
 ---
-**Signed,**
+Signed,
 
 _________________________
 Event Staffing Pro
 
 _________________________
 ${staff.name}
-        `;
+        `.trim();
     }
 
     const handleGenerateClick = (member: Staff) => {
@@ -214,26 +228,28 @@ ${staff.name}
     };
 
     const handleDownloadPdf = () => {
-        const input = agreementContentRef.current;
-        if (!input) return;
+        const pdf = new jsPDF('p', 'pt', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const margin = 40;
+        
+        pdf.setFont('Helvetica');
+        pdf.setFontSize(10);
 
-        html2canvas(input, { scale: 2 }).then((canvas) => {
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            const ratio = canvasWidth / canvasHeight;
-            const width = pdfWidth;
-            const height = width / ratio;
-
-            let position = 0;
-            pdf.addImage(imgData, 'PNG', 0, position, width, height);
-
-            pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
-             toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
+        const textLines = pdf.splitTextToSize(agreementText, pdfWidth - margin * 2);
+        
+        let y = margin;
+        textLines.forEach((line: string) => {
+            if (y > pdfHeight - margin) {
+                pdf.addPage();
+                y = margin;
+            }
+            pdf.text(line, margin, y);
+            y += 12; // Line height
         });
+
+        pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
+        toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
     };
     
     async function onDetailsSubmit(values: z.infer<typeof staffSchema>) {
@@ -530,11 +546,16 @@ ${staff.name}
                         <DialogHeader>
                             <DialogTitle>Staff Agreement: {selectedStaff.name}</DialogTitle>
                             <DialogDescription>
-                                This is a preview of the digital agreement. It can be downloaded as a PDF.
+                                Preview and edit the digital agreement below. It can be downloaded as a PDF.
                             </DialogDescription>
                         </DialogHeader>
-                        <div ref={agreementContentRef} className="space-y-4 text-sm border rounded-md p-6 max-h-[60vh] overflow-y-auto bg-white text-black whitespace-pre-wrap font-mono">
-                           <p>{agreementText}</p>
+                        <div className="py-4">
+                             <Textarea
+                                value={agreementText}
+                                onChange={(e) => setAgreementText(e.target.value)}
+                                className="h-80 w-full font-mono text-xs"
+                                placeholder="Agreement text..."
+                             />
                         </div>
                         <DialogFooter>
                             <DialogClose asChild>
@@ -554,7 +575,122 @@ ${staff.name}
     )
 }
 
+function InquiryTab() {
+     const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+     const [loading, setLoading] = useState(true);
+     const { toast } = useToast();
+
+     const form = useForm<z.infer<typeof inquirySchema>>();
+
+     useEffect(() => {
+        const q = query(collection(db, "inquiries"), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const inquiryList = snapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as Inquiry));
+            setInquiries(inquiryList);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching inquiries:", error);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+     }, []);
+
+    const handleStatusChange = async (inquiryId: string, status: string) => {
+        const inquiryRef = doc(db, "inquiries", inquiryId);
+        try {
+            await setDoc(inquiryRef, { status }, { merge: true });
+            toast({ title: "Status Updated", description: "The inquiry status has been changed."})
+        } catch (error) {
+            console.error("Failed to update status: ", error);
+            toast({ variant: 'destructive', title: "Update Failed", description: "Could not update the inquiry status."})
+        }
+    }
+
+
+     if (loading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Inquiry & Lead Management</CardTitle>
+                    <CardDescription>Manage new staff member leads and inquiries.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-48 w-full" />
+                </CardContent>
+            </Card>
+        )
+     }
+
+     return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Inquiry & Lead Management</CardTitle>
+                <CardDescription>Manage new staff member leads and inquiries.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {inquiries.length === 0 && (
+                             <TableRow>
+                                <TableCell colSpan={5} className="text-center h-24">
+                                    No new inquiries found.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                        {inquiries.map((inquiry) => (
+                             <TableRow key={inquiry.id}>
+                                <TableCell className='font-medium'>{inquiry.name}</TableCell>
+                                <TableCell>{inquiry.phone}</TableCell>
+                                <TableCell>{inquiry.createdAt?.toDate().toLocaleDateString()}</TableCell>
+                                <TableCell>
+                                    <Select
+                                        defaultValue={inquiry.status}
+                                        onValueChange={(value) => handleStatusChange(inquiry.id, value)}
+                                    >
+                                        <SelectTrigger className="w-[120px]">
+                                            <SelectValue placeholder="Set status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="New">New</SelectItem>
+                                            <SelectItem value="Contacted">Contacted</SelectItem>
+                                            <SelectItem value="Hired">Hired</SelectItem>
+                                            <SelectItem value="Rejected">Rejected</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {/* Future actions can go here */}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                 </Table>
+            </CardContent>
+        </Card>
+     )
+}
+
 export default function HRDashboardPage() {
+    const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+
+    useEffect(() => {
+        const q = query(collection(db, "users"), where('role', '==', 'inquiry'));
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            const inquiriesDocs = await getDocs(q);
+            setInquiries(inquiriesDocs.docs.map(d => ({id: d.id, ...d.data()})) as Inquiry[]);
+        });
+        return () => unsubscribe();
+    }, []);
+
     return (
         <Tabs defaultValue="agreements" className="w-full">
             <Card>
@@ -575,7 +711,7 @@ export default function HRDashboardPage() {
                 <AgreementsTab />
             </TabsContent>
             <TabsContent value="inquiries" className="mt-4">
-                <PlaceholderTab title="Inquiry & Lead Management" icon={BookUser} />
+                 <InquiryTab />
             </TabsContent>
             <TabsContent value="training" className="mt-4">
                 <PlaceholderTab title="Staff Training" icon={ClipboardCheck} />
