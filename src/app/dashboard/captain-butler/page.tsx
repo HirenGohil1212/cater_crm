@@ -342,7 +342,7 @@ function EventManagementTab() {
                         <TableCell className="text-right space-x-2">
                            <Dialog>
                                <DialogTrigger asChild>
-                                    <Button disabled={event.status !== 'Confirmed'}>
+                                    <Button>
                                         <FileEdit className="mr-2 h-4 w-4" />
                                         Manage Event
                                     </Button>
