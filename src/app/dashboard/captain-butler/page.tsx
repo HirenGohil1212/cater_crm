@@ -70,7 +70,7 @@ export default function CaptainButlerDashboardPage() {
         const ordersQuery = query(
             collection(db, "orders"), 
             where('assignedStaff', 'array-contains', user.uid),
-            where('status', 'in', ['Confirmed', 'Completed'])
+            where('status', 'in', ['Pending', 'Confirmed', 'Completed'])
         );
         
         const unsubscribe = onSnapshot(ordersQuery, async (snapshot) => {
@@ -177,14 +177,14 @@ export default function CaptainButlerDashboardPage() {
                         <TableCell className="font-medium">{format(new Date(event.date), 'PPP')}</TableCell>
                         <TableCell>{event.clientName}</TableCell>
                         <TableCell>
-                             <Badge variant={event.status === "Completed" ? "default" : "secondary"}>{event.status}</Badge>
+                             <Badge variant={event.status === "Completed" ? "default" : (event.status === "Confirmed" ? "secondary" : "destructive")}>{event.status}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
                            <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button 
                                         size="sm" 
-                                        disabled={event.status === 'Completed' || isUpdating === event.id}
+                                        disabled={event.status !== 'Confirmed' || isUpdating === event.id}
                                         className="bg-accent text-accent-foreground hover:bg-accent/90"
                                     >
                                         {isUpdating === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
