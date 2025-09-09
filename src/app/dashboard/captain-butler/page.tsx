@@ -25,15 +25,14 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileClock, Loader2, CalendarCheck, FileEdit, Calculator, Users, Star, ClipboardCheck, UserCheck } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { CheckCircle, FileClock, Loader2, CalendarCheck, FileEdit, Users, Star, ClipboardCheck, UserCheck, Upload, Trash2 } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
 import { auth, db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -42,7 +41,9 @@ import { Dialog, DialogTrigger, DialogContent, DialogDescription, DialogHeader, 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { InvoiceList } from "@/app/dashboard/accountant/page";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import Image from "next/image";
 
 
 type Staff = {
@@ -69,6 +70,7 @@ type Order = {
   userId: string;
   clientName?: string;
   venue?: string;
+  assignedStaff?: string[];
 };
 
 
@@ -77,167 +79,139 @@ async function getClientNameForOrder(userId: string): Promise<string> {
     return userDoc.exists() ? userDoc.data().companyName || userDoc.data().name : 'Unknown Client';
 }
 
-
-function TeamManagementTab() {
-    const [team, setTeam] = useState<Staff[]>([]);
-    const [loading, setLoading] = useState(true);
+function EventManagementDialog({ order, assignedStaffDetails }: { order: Order, assignedStaffDetails: Staff[] }) {
     const { toast } = useToast();
+    const [isUpdating, setIsUpdating] = useState(false);
 
-    useEffect(() => {
-        const subordinateRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro'];
-        const q = query(collection(db, "staff"), where('role', 'in', subordinateRoles));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const staffList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff));
-            staffList.sort((a, b) => a.name.localeCompare(b.name));
-            setTeam(staffList);
-            setLoading(false);
-        }, (error) => {
-             console.error("Error fetching team:", error);
-             toast({ variant: 'destructive', title: "Error", description: "Could not load team members."});
-             setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [toast]);
-    
-    const handleSubmitReport = () => {
-        toast({
-            title: "Report Submitted",
-            description: "The report has been saved and will be reviewed."
-        })
+    const handleEndEvent = async () => {
+        setIsUpdating(true);
+        const orderRef = doc(db, 'orders', order.id);
+        try {
+            await updateDoc(orderRef, {
+                status: 'Completed'
+            });
+            toast({
+                title: "Event Completed",
+                description: "The event has been marked as completed and will be passed to Sales for review.",
+            });
+        } catch (error) {
+            console.error("Error ending event:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Update Failed',
+                description: 'Could not update the event status. Please try again.'
+            })
+        } finally {
+            setIsUpdating(false);
+        }
     }
     
-    const handleSubmitRating = () => {
-        toast({
-            title: "Rating Submitted",
-            description: "The staff member's rating has been updated."
-        })
-    }
-
-    const handleAttendance = (staffName: string) => {
-        toast({
-            title: "Attendance Marked",
-            description: `${staffName} has been marked as present.`
-        });
-    }
-
-    if(loading) {
-        return (
-             <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {[...Array(5)].map((_, i) => (
-                         <TableRow key={i}>
-                            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                            <TableCell className="text-right"><Skeleton className="h-9 w-48 ml-auto" /></TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-             </Table>
-        )
-    }
-
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Team Management</CardTitle>
-                <CardDescription>Manage attendance, ratings, and penalties for your team.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {team.map((member) => (
-                            <TableRow key={member.id}>
-                                <TableCell className="font-medium">{member.name}</TableCell>
-                                <TableCell><Badge variant="secondary">{member.role}</Badge></TableCell>
-                                <TableCell className="text-right space-x-2">
-                                     <Button variant="outline" size="sm" onClick={() => handleAttendance(member.name)}>
-                                        <UserCheck className="mr-2 h-4 w-4" /> Attendance
-                                     </Button>
-
-                                     <Dialog>
-                                        <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm"><Star className="mr-2 h-4 w-4" /> Rate</Button>
-                                        </DialogTrigger>
-                                        <DialogContent>
-                                            <DialogHeader>
-                                                <DialogTitle>Rate {member.name}</DialogTitle>
-                                                <DialogDescription>
-                                                    Provide a performance rating and any additional remarks.
-                                                </DialogDescription>
-                                            </DialogHeader>
-                                            <div className="grid gap-4 py-4">
-                                                 <div className="grid grid-cols-4 items-center gap-4">
-                                                    <Label htmlFor="rating" className="text-right">Rating (1-5)</Label>
-                                                    <div className="col-span-3 flex items-center">
-                                                        {[1,2,3,4,5].map(i => (
-                                                            <Star key={i} className="w-6 h-6 text-gray-300 cursor-pointer hover:text-yellow-400" />
-                                                        ))}
+        <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>Manage Event: {order.clientName}</DialogTitle>
+                <DialogDescription>Event on {format(new Date(order.date), 'PPP')}. Mark attendance, apply penalties, and finalize the event.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-4">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Team Attendance & Management</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Present</TableHead>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Role</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {assignedStaffDetails.map(staff => (
+                                    <TableRow key={staff.id}>
+                                         <TableCell><Checkbox id={`att-${staff.id}`} /></TableCell>
+                                         <TableCell className="font-medium">{staff.name}</TableCell>
+                                         <TableCell><Badge variant="secondary">{staff.role}</Badge></TableCell>
+                                         <TableCell className="text-right space-x-2">
+                                            <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <Button variant="destructive" size="sm">Penalty</Button>
+                                                </DialogTrigger>
+                                                <DialogContent>
+                                                    <DialogHeader>
+                                                        <DialogTitle>Apply Penalty to {staff.name}</DialogTitle>
+                                                    </DialogHeader>
+                                                    <div className="grid gap-4 py-4">
+                                                        <Label htmlFor="penalty-amount">Penalty Amount (₹)</Label>
+                                                        <Input id="penalty-amount" type="number" placeholder="e.g., 500" />
+                                                        <Label htmlFor="penalty-reason">Reason</Label>
+                                                        <Textarea id="penalty-reason" placeholder="Describe the reason for the penalty..." />
                                                     </div>
-                                                </div>
-                                                <div className="grid grid-cols-4 items-center gap-4">
-                                                    <Label htmlFor="remarks" className="text-right">Remarks</Label>
-                                                    <Textarea id="remarks" placeholder="Optional remarks..." className="col-span-3" />
-                                                </div>
-                                            </div>
-                                            <DialogFooter>
-                                                <DialogClose asChild>
-                                                    <Button type="button" variant="outline">Cancel</Button>
-                                                </DialogClose>
-                                                <DialogClose asChild>
-                                                    <Button type="submit" onClick={handleSubmitRating}>Submit Rating</Button>
-                                                </DialogClose>
-                                            </DialogFooter>
-                                        </DialogContent>
-                                     </Dialog>
-
-                                    <Dialog>
-                                        <DialogTrigger asChild>
-                                            <Button variant="destructive" size="sm"><FileEdit className="mr-2 h-4 w-4" /> Report</Button>
-                                        </DialogTrigger>
-                                        <DialogContent>
-                                            <DialogHeader>
-                                                <DialogTitle>Report / Penalty for {member.name}</DialogTitle>
-                                                <DialogDescription>
-                                                    Submit a report for this staff member. This will be logged and reviewed by HR and Admin.
-                                                </DialogDescription>
-                                            </DialogHeader>
-                                            <div className="grid gap-4 py-4">
-                                                <Textarea placeholder="Describe the incident or reason for the penalty..." rows={5} />
-                                            </div>
-                                            <DialogFooter>
-                                                <DialogClose asChild>
-                                                    <Button type="button" variant="outline">Cancel</Button>
-                                                </DialogClose>
-                                                 <DialogClose asChild>
-                                                    <Button type="submit" onClick={handleSubmitReport}>Submit Report</Button>
-                                                 </DialogClose>
-                                            </DialogFooter>
-                                        </DialogContent>
-                                    </Dialog>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
-    );
+                                                    <DialogFooter>
+                                                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                                                        <DialogClose asChild><Button type="submit">Apply Penalty</Button></DialogClose>
+                                                    </DialogFooter>
+                                                </DialogContent>
+                                            </Dialog>
+                                         </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                 </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Event Finalization</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid md:grid-cols-2 gap-4 items-center">
+                        <div>
+                             <Label htmlFor="chit-upload">Upload Client Chit</Label>
+                             <Input id="chit-upload" type="file" className="mt-2" />
+                             <p className="text-xs text-muted-foreground mt-2">Upload a photo of the signed client document.</p>
+                        </div>
+                        <div className="flex justify-center">
+                            <Image src="https://picsum.photos/200/150" alt="Placeholder for chit" width={200} height={150} className="rounded-md border bg-muted" data-ai-hint="document photo" />
+                        </div>
+                    </CardContent>
+                     <CardFooter>
+                           <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button 
+                                        size="lg" 
+                                        disabled={order.status !== 'Confirmed' || isUpdating}
+                                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                                    >
+                                        {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                                        End Event & Submit for Review
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure you want to end this event?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will mark the event as 'Completed' and submit it to the sales team for billing review. This action cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleEndEvent}>
+                                            Yes, End Event
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                           </AlertDialog>
+                     </CardFooter>
+                 </Card>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild>
+                    <Button variant="outline">Close</Button>
+                </DialogClose>
+            </DialogFooter>
+        </DialogContent>
+    )
 }
 
 
@@ -245,9 +219,8 @@ function EventManagementTab() {
     const [events, setEvents] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [authLoading, setAuthLoading] = useState(true);
-    const [isUpdating, setIsUpdating] = useState<string | null>(null);
-    const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
+    const [assignedStaffDetails, setAssignedStaffDetails] = useState<Record<string, Staff[]>>({});
 
     useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -273,13 +246,26 @@ function EventManagementTab() {
             const eventPromises = snapshot.docs.map(async (docSnap: QueryDocumentSnapshot<DocumentData>) => {
                 const data = docSnap.data();
                 const clientName = await getClientNameForOrder(data.userId);
+
+                // Fetch details of assigned staff for this specific order
+                if (data.assignedStaff && data.assignedStaff.length > 0) {
+                     const staffPromises = data.assignedStaff.map((staffId: string) => getDoc(doc(db, 'staff', staffId)));
+                     const staffDocs = await Promise.all(staffPromises);
+                     const staffDetails = staffDocs
+                        .filter(doc => doc.exists())
+                        .map(doc => ({ id: doc.id, ...doc.data() } as Staff));
+                    
+                     setAssignedStaffDetails(prev => ({...prev, [docSnap.id]: staffDetails}));
+                }
+
                 return {
                     id: docSnap.id,
                     date: data.date,
                     attendees: data.attendees,
                     status: data.status,
                     clientName: clientName,
-                    venue: data.venue || 'Venue not specified', // Assume venue might exist
+                    venue: data.venue || 'Venue not specified',
+                    assignedStaff: data.assignedStaff || [],
                 };
             });
 
@@ -296,30 +282,6 @@ function EventManagementTab() {
         return () => unsubscribe();
 
     }, [user, authLoading]);
-
-    const handleEndEvent = async (orderId: string) => {
-        setIsUpdating(orderId);
-        const orderRef = doc(db, 'orders', orderId);
-        try {
-            await updateDoc(orderRef, {
-                status: 'Completed'
-            });
-            toast({
-                title: "Event Completed",
-                description: "The event has been marked as completed and is now ready for billing.",
-            });
-        } catch (error) {
-            console.error("Error ending event:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Update Failed',
-                description: 'Could not update the event status. Please try again.'
-            })
-        } finally {
-            setIsUpdating(null);
-        }
-    }
-
 
     const renderContent = () => {
         if (loading || authLoading) {
@@ -376,39 +338,15 @@ function EventManagementTab() {
                              <Badge variant={event.status === "Completed" ? "default" : (event.status === "Confirmed" ? "secondary" : "destructive")}>{event.status}</Badge>
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                           <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button 
-                                        size="sm" 
-                                        disabled={event.status !== 'Confirmed' || isUpdating === event.id}
-                                        className="bg-accent text-accent-foreground hover:bg-accent/90"
-                                    >
-                                        {isUpdating === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                                        {event.status === 'Completed' ? 'Completed' : 'End Event'}
+                           <Dialog>
+                               <DialogTrigger asChild>
+                                    <Button disabled={event.status !== 'Confirmed'}>
+                                        <FileEdit className="mr-2 h-4 w-4" />
+                                        Manage Event
                                     </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure you want to end this event?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will mark the event as 'Completed' and make it available for invoicing. This action cannot be undone.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleEndEvent(event.id)}>
-                                            Yes, End Event
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                           </AlertDialog>
-                           <Button 
-                             size="sm" 
-                             variant="outline"
-                             onClick={() => handleEndEvent(event.id)}
-                           >
-                                Test End
-                           </Button>
+                               </DialogTrigger>
+                               <EventManagementDialog order={event} assignedStaffDetails={assignedStaffDetails[event.id] || []} />
+                           </Dialog>
                         </TableCell>
                     </TableRow>
                    ))}
@@ -421,7 +359,7 @@ function EventManagementTab() {
          <Card>
             <CardHeader>
                 <CardTitle>Event Management</CardTitle>
-                <CardDescription>Oversee and conclude your assigned events.</CardDescription>
+                <CardDescription>Oversee and conclude your assigned events. This is where you'll manage staff during an event.</CardDescription>
             </CardHeader>
             <CardContent>
                 {renderContent()}
@@ -436,12 +374,11 @@ export default function CaptainButlerDashboardPage() {
             <Card>
                  <CardHeader>
                     <CardTitle>Captain's Dashboard</CardTitle>
-                    <CardDescription>Oversee events and manage your team and availability.</CardDescription>
+                    <CardDescription>Oversee events, manage your team, and set your availability.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="events"><FileEdit className="mr-2 h-4 w-4" />Event Management</TabsTrigger>
-                        <TabsTrigger value="team"><Users className="mr-2 h-4 w-4" />Team Management</TabsTrigger>
                         <TabsTrigger value="availability"><CalendarCheck className="mr-2 h-4 w-4" />My Availability</TabsTrigger>
                     </TabsList>
                 </CardContent>
@@ -449,9 +386,6 @@ export default function CaptainButlerDashboardPage() {
 
             <TabsContent value="events" className="mt-4">
                 <EventManagementTab />
-            </TabsContent>
-             <TabsContent value="team" className="mt-4">
-                <TeamManagementTab />
             </TabsContent>
             <TabsContent value="availability" className="mt-4">
                 <AvailabilityTab />
