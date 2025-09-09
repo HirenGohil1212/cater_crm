@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -89,7 +89,7 @@ function AgreementsTab() {
     const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
     const [isAddStaffDialogOpen, setIsAddStaffDialogOpen] = useState(false);
     const [agreementText, setAgreementText] = useState('');
-    const agreementContentRef = React.useRef<HTMLDivElement>(null);
+    const agreementContentRef = useRef<HTMLDivElement>(null);
     
     // Add Staff Form State
     const [isSubmitting, setIsSubmitting] = useState(false);
