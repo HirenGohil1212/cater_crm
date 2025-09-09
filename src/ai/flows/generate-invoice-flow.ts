@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { doc, getDoc, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 
@@ -28,6 +28,7 @@ const LineItemSchema = z.object({
 const ClientInfoSchema = z.object({
     id: z.string(),
     name: z.string(),
+    companyName: z.string(),
     address: z.string(),
     gstin: z.string().optional(),
 });
@@ -47,10 +48,49 @@ export type GenerateInvoiceOutput = z.infer<typeof GenerateInvoiceOutputSchema>;
 
 
 /**
- * Fetches order and user details to provide context for the AI prompt.
- * This function is not a flow, but a helper to assemble data.
+ * A simple context object passed to the prompt.
+ * The AI's job is just to format this, not calculate it.
  */
-async function getInvoiceContext(orderId: string) {
+const PromptContextSchema = GenerateInvoiceOutputSchema;
+
+
+// Exported function that wraps the Genkit flow
+export async function generateInvoice(input: GenerateInvoiceInput): Promise<GenerateInvoiceOutput> {
+  return generateInvoiceFlow(input);
+}
+
+
+const prompt = ai.definePrompt({
+    name: 'generateInvoicePrompt',
+    input: { schema: PromptContextSchema }, 
+    output: { schema: GenerateInvoiceOutputSchema },
+    prompt: `
+      You are an expert accounting assistant for an event staffing company.
+      Your task is to take the provided, fully calculated invoice data and ensure it is formatted correctly into the specified JSON output structure.
+
+      **DO NOT CHANGE ANY VALUES. Use the exact data provided.**
+
+      **INVOICE DATA:**
+      - Invoice Number: {{{invoiceNumber}}}
+      - Invoice Date: {{{invoiceDate}}}
+      - Event Date: {{{eventDate}}}
+      - Client Info: {{{json client}}}
+      - Line Items: {{{json lineItems}}}
+      - Subtotal: {{{subtotal}}}
+      - GST Rate: {{{gstRate}}}
+      - GST Amount: {{{gstAmount}}}
+      - Total Amount: {{{totalAmount}}}
+    `,
+});
+
+const generateInvoiceFlow = ai.defineFlow(
+  {
+    name: 'generateInvoiceFlow',
+    inputSchema: GenerateInvoiceInputSchema,
+    outputSchema: GenerateInvoiceOutputSchema,
+  },
+  async ({ orderId }) => {
+    // 1. Fetch all necessary data from Firestore
     const orderRef = doc(db, 'orders', orderId);
     const orderSnap = await getDoc(orderRef);
 
@@ -66,75 +106,42 @@ async function getInvoiceContext(orderId: string) {
         throw new Error(`User with ID ${orderData.userId} not found.`);
     }
     const userData = userSnap.data();
+    
+    // 2. Perform all calculations and formatting in code
+    const cateringRate = orderData.menuType === 'veg' ? 1200 : 1500;
+    const cateringCost = cateringRate * orderData.attendees;
+    const serviceCharge = cateringCost * 0.10;
+    const subtotal = cateringCost + serviceCharge;
+    const gstRate = 18; // Fixed 18%
+    const gstAmount = subtotal * (gstRate / 100);
+    const totalAmount = subtotal + gstAmount;
+    const today = new Date();
 
-    return {
-        userId: orderData.userId,
+    const context: z.infer<typeof PromptContextSchema> = {
+        invoiceNumber: `INV-${format(today, 'yyyyMMdd')}-${orderId.slice(-4).toUpperCase()}`,
+        invoiceDate: format(today, 'yyyy-MM-dd'),
         eventDate: orderData.date,
-        attendees: orderData.attendees,
-        menuType: orderData.menuType,
-        clientName: userData.name,
-        companyName: userData.companyName || 'N/A',
-        clientAddress: userData.address || 'N/A', // Assuming address is stored on user
-        clientGstin: userData.gstNumber || 'N/A',
+        client: {
+            id: orderData.userId,
+            name: userData.name || 'N/A',
+            companyName: userData.companyName || 'N/A',
+            address: userData.address || 'Address not provided',
+            gstin: userData.gstNumber || 'N/A',
+        },
+        lineItems: [
+            { description: `Catering Services (${orderData.attendees} attendees, ${orderData.menuType} menu)`, amount: cateringCost },
+            { description: 'Service Charge (10% of catering cost)', amount: serviceCharge },
+        ],
+        subtotal: subtotal,
+        gstRate: gstRate,
+        gstAmount: gstAmount,
+        totalAmount: totalAmount,
     };
-}
 
-
-// Exported function that wraps the Genkit flow
-export async function generateInvoice(input: GenerateInvoiceInput): Promise<GenerateInvoiceOutput> {
-  return generateInvoiceFlow(input);
-}
-
-
-const prompt = ai.definePrompt({
-    name: 'generateInvoicePrompt',
-    input: { schema: z.any() }, // Input is the rich context object
-    output: { schema: GenerateInvoiceOutputSchema },
-    prompt: `
-      You are an expert accounting assistant for an event staffing company.
-      Your task is to generate a formal invoice based on the event details provided.
-
-      **INSTRUCTIONS:**
-      1.  Create a unique invoice number. A combination of the current date and a short random string is fine (e.g., INV-YYYYMMDD-XXXX).
-      2.  The invoice date should be today's date, formatted as YYYY-MM-DD.
-      3.  Calculate the cost of services. Use the following rates:
-          - Base catering cost per attendee: ₹1200 for 'veg', ₹1500 for 'non-veg'.
-          - Service charge: 10% of the total catering cost.
-      4.  Create line items for 'Catering Services' and 'Service Charge'.
-      5.  Calculate the subtotal (sum of all line items).
-      6.  Calculate GST at a fixed rate of 18% on the subtotal.
-      7.  Calculate the final total amount (subtotal + GST).
-      8.  Fill in all client details as provided.
-      9.  Crucially, ensure the client's 'id' field is set to the provided 'userId'.
-
-      **EVENT & CLIENT DATA:**
-      - Client User ID: {{{userId}}}
-      - Event Date: {{{eventDate}}}
-      - Number of Attendees: {{{attendees}}}
-      - Menu Type: {{{menuType}}}
-      - Client Name: {{{clientName}}}
-      - Client Company: {{{companyName}}}
-      - Client Address: {{{clientAddress}}}
-      - Client GSTIN: {{{clientGstin}}}
-    `,
-});
-
-const generateInvoiceFlow = ai.defineFlow(
-  {
-    name: 'generateInvoiceFlow',
-    inputSchema: GenerateInvoiceInputSchema,
-    outputSchema: GenerateInvoiceOutputSchema,
-  },
-  async ({ orderId }) => {
-    // 1. Fetch the rich context for the prompt
-    const context = await getInvoiceContext(orderId);
-
-    // 2. Generate the invoice using the AI prompt
+    // 3. Pass the fully-formed context to the AI for formatting
     const { output } = await prompt(context);
 
-    // 3. Return the structured output
-    // The prompt now returns the fully-structured object, so we just return it.
-    // The '!' non-null assertion is safe because the prompt is configured to always return this structure.
+    // 4. Return the structured output from the AI
     return output!;
   }
 );
