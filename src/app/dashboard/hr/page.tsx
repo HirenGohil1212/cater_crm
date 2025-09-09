@@ -180,42 +180,39 @@ function AgreementsTab() {
 
         try {
             const canvas = await html2canvas(content, {
-                scale: 2, // Higher scale for better resolution
-                backgroundColor: '#ffffff', // Explicitly set background color
+                scale: 2,
+                backgroundColor: '#ffffff',
                 useCORS: true,
             });
 
             const imgData = canvas.toDataURL('image/png');
             
-            // A4 page size in points (jsPDF default unit)
-            const pdfWidth = 595.28;
-            const pdfHeight = 841.89;
-
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            const canvasAspectRatio = canvasWidth / canvasHeight;
-
-            // Calculate image dimensions to fit within A4 page with margins
-            const margin = 40;
-            let finalImgWidth = pdfWidth - (margin * 2);
-            let finalImgHeight = finalImgWidth / canvasAspectRatio;
-
-            // If the image is too tall, fit it to height instead
-            if (finalImgHeight > pdfHeight - (margin * 2)) {
-                 finalImgHeight = pdfHeight - (margin * 2);
-                 finalImgWidth = finalImgHeight * canvasAspectRatio;
-            }
-
             const pdf = new jsPDF({
                 orientation: 'portrait',
                 unit: 'pt',
                 format: 'a4',
             });
 
-            const x = (pdfWidth - finalImgWidth) / 2;
-            const y = margin;
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const canvasAspectRatio = canvasWidth / canvasHeight;
+            const pdfAspectRatio = pdfWidth / pdfHeight;
 
-            pdf.addImage(imgData, 'PNG', x, y, finalImgWidth, finalImgHeight);
+            let finalImgWidth, finalImgHeight;
+
+            // Fit by width
+            finalImgWidth = pdfWidth;
+            finalImgHeight = finalImgWidth / canvasAspectRatio;
+            
+            // If height is still too large, fit by height
+            if (finalImgHeight > pdfHeight) {
+                finalImgHeight = pdfHeight;
+                finalImgWidth = finalImgHeight * canvasAspectRatio;
+            }
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
             pdf.save(`Agreement-${selectedStaff.name}.pdf`);
             toast({ title: 'PDF Downloaded', description: 'The agreement has been saved.' });
         } catch (error) {
@@ -488,8 +485,8 @@ function AgreementsTab() {
         ];
 
         return (
-             <div ref={agreementContentRef} className="bg-white text-gray-900 font-sans max-h-[70vh] overflow-y-auto">
-                <div className="p-8">
+             <div className='w-[595px] h-[842px] bg-white text-gray-900 font-sans shadow-lg mx-auto'>
+                <div ref={agreementContentRef} className="p-10 flex flex-col h-full">
                     <header className="flex justify-between items-center pb-4 border-b-2 border-gray-800">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-800">Employment Agreement</h1>
@@ -516,7 +513,7 @@ function AgreementsTab() {
                             <div><span className="font-semibold">Address:</span> {staff.address}</div>
                             <div><span className="font-semibold">Role:</span> {staff.role}</div>
                             <div><span className="font-semibold">ID Number:</span> {staff.idNumber}</div>
-                            <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
+                             <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
                             <div><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</div>
                         </div>
                     </section>
@@ -534,7 +531,7 @@ function AgreementsTab() {
                         </ol>
                     </section>
 
-                    <footer className="mt-16 pt-8">
+                    <footer className="mt-auto pt-10">
                         <div className="grid grid-cols-2 gap-16 text-sm">
                             <div>
                                 <div className="w-full h-12 border-b-2 border-gray-400"></div>
@@ -587,19 +584,13 @@ function AgreementsTab() {
             </Card>
 
             <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
-            <DialogContent className="sm:max-w-3xl bg-gray-100 p-0">
+            <DialogContent className="max-w-fit bg-gray-100 p-0 overflow-y-auto">
                 {selectedStaff && (
                     <>
-                        <DialogHeader className="p-6 pb-0">
-                            <DialogTitle>Staff Agreement: {selectedStaff.name}</DialogTitle>
-                            <DialogDescription>
-                                Preview the digital agreement below. It can be downloaded as a PDF.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="px-2">
+                       <div className='p-8'>
                            <AgreementPreview staff={selectedStaff} />
-                        </div>
-                        <DialogFooter className="bg-gray-200/80 p-4 border-t">
+                       </div>
+                        <DialogFooter className="bg-gray-200/80 p-4 border-t sticky bottom-0">
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
@@ -785,5 +776,3 @@ declare global {
         confirmationResult: any;
     }
 }
-
-    
