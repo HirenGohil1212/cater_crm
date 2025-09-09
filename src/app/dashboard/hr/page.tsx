@@ -170,55 +170,60 @@ function AgreementsTab() {
 
     const handleDownloadPdf = (staff: Staff) => {
         const doc = new jsPDF();
+        
+        const primaryColor = "#4A5568"; // Corresponds to text-primary
+        const mutedColor = "#718096";   // Corresponds to text-muted-foreground
+        const blackColor = "#000000";
         const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
         const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
         const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
         
-        const primaryColor = "#4A5568"; // Corresponds to text-primary
-        const mutedColor = "#718096";   // Corresponds to text-muted-foreground
+        let yPos = 20;
 
         // Header
+        doc.setFont("helvetica", "bold");
         doc.setFontSize(22);
         doc.setTextColor(primaryColor);
-        doc.setFont("helvetica", "bold");
-        doc.text("Employment Agreement", 20, 20);
+        doc.text("Employment Agreement", 20, yPos);
+        yPos += 8;
 
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
         doc.setTextColor(mutedColor);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Date: ${today}`, 20, 28);
+        doc.text(`Date: ${today}`, 20, yPos);
+        yPos += 4;
+        
         doc.setDrawColor(primaryColor);
-        doc.line(20, 32, 190, 32);
-
-        let yPos = 45;
+        doc.line(20, yPos, 190, yPos); // Separator
+        yPos += 12;
 
         // Parties
         doc.setFontSize(14);
-        doc.setTextColor(primaryColor);
         doc.setFont("helvetica", "bold");
+        doc.setTextColor(primaryColor);
         doc.text("Parties", 20, yPos);
         yPos += 8;
 
         doc.setFontSize(11);
-        doc.setTextColor("#000000");
         doc.setFont("helvetica", "normal");
+        doc.setTextColor(blackColor);
         doc.text(`Company: Event Staffing Pro`, 25, yPos);
         yPos += 6;
         doc.text(`Staff Member: ${staff.name}`, 25, yPos);
         yPos += 10;
-        doc.line(20, yPos, 190, yPos); // Separator
-        yPos += 10;
+        doc.line(20, yPos, 190, yPos);
+        yPos += 12;
 
         // Staff Details
         doc.setFontSize(14);
-        doc.setTextColor(primaryColor);
         doc.setFont("helvetica", "bold");
+        doc.setTextColor(primaryColor);
         doc.text("Staff Details", 20, yPos);
         yPos += 8;
 
         doc.setFontSize(11);
-        doc.setTextColor("#000000");
         doc.setFont("helvetica", "normal");
+        doc.setTextColor(blackColor);
         doc.text(`Address: ${staff.address}`, 25, yPos);
         doc.text(`Role: ${staff.role}`, 110, yPos);
         yPos += 6;
@@ -227,8 +232,9 @@ function AgreementsTab() {
         yPos += 6;
         doc.text(`IFSC Code: ${staff.bankIfscCode || 'N/A'}`, 25, yPos);
         yPos += 10;
-        doc.line(20, yPos, 190, yPos); // Separator
-        yPos += 10;
+        doc.line(20, yPos, 190, yPos);
+        yPos += 12;
+
 
         // Terms & Conditions
         doc.setFontSize(14);
@@ -238,7 +244,7 @@ function AgreementsTab() {
         yPos += 8;
 
         doc.setFontSize(11);
-        doc.setTextColor("#000000");
+        doc.setTextColor(blackColor);
         doc.setFont("helvetica", "normal");
         
         const terms = [
@@ -249,18 +255,19 @@ function AgreementsTab() {
             "5. Governing Law: This Agreement shall be governed by the laws of India."
         ];
         
+        const textOptions = { maxWidth: 165 };
         terms.forEach(term => {
-            const splitText = doc.splitTextToSize(term, 165); // 190 (page width) - 25 (margin)
+            const splitText = doc.splitTextToSize(term, textOptions.maxWidth);
             doc.text(splitText, 25, yPos);
             yPos += (splitText.length * 5) + 3;
         });
 
         // Footer
-        yPos = 250; // Set fixed position for signatures to avoid overlap
+        yPos = 250;
         doc.setDrawColor(mutedColor);
         doc.setLineDashPattern([2, 2], 0);
-        doc.line(25, yPos, 85, yPos); // Signature line
-        doc.line(125, yPos, 185, yPos); // Signature line
+        doc.line(25, yPos, 85, yPos);
+        doc.line(125, yPos, 185, yPos);
         
         doc.setFont("helvetica", "bold");
         doc.text("Event Staffing Pro", 25, yPos + 5);
