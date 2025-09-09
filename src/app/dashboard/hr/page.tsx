@@ -180,36 +180,39 @@ function AgreementsTab() {
 
         try {
             const canvas = await html2canvas(content, {
-                scale: 2, // Higher scale for better quality
+                scale: 2,
                 backgroundColor: '#ffffff',
                 useCORS: true,
             });
 
             const imgData = canvas.toDataURL('image/png');
+            
+            // A4 page size in points (jsPDF default unit)
+            const pdfWidth = 595.28;
+            const pdfHeight = 841.89;
+
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const canvasAspectRatio = canvasWidth / canvasHeight;
+
+            let finalImgWidth = pdfWidth - 80; // with 40pt margin on each side
+            let finalImgHeight = finalImgWidth / canvasAspectRatio;
+
+            if (finalImgHeight > pdfHeight - 80) {
+                 finalImgHeight = pdfHeight - 80; // with 40pt margin top/bottom
+                 finalImgWidth = finalImgHeight * canvasAspectRatio;
+            }
+
             const pdf = new jsPDF({
                 orientation: 'portrait',
                 unit: 'pt',
                 format: 'a4',
             });
 
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            const ratio = canvasWidth / canvasHeight;
+            const x = (pdfWidth - finalImgWidth) / 2;
+            const y = 40; // 40pt margin from top
 
-            let finalCanvasWidth = pdfWidth;
-            let finalCanvasHeight = pdfWidth / ratio;
-            
-            if (finalCanvasHeight > pdfHeight) {
-                finalCanvasHeight = pdfHeight;
-                finalCanvasWidth = pdfHeight * ratio;
-            }
-
-            const x = (pdfWidth - finalCanvasWidth) / 2;
-            const y = (pdfHeight - finalCanvasHeight) / 2;
-
-            pdf.addImage(imgData, 'PNG', x, y, finalCanvasWidth, finalCanvasHeight);
+            pdf.addImage(imgData, 'PNG', x, y, finalImgWidth, finalImgHeight);
             pdf.save(`Agreement-${selectedStaff.name}.pdf`);
             toast({ title: 'PDF Downloaded', description: 'The agreement has been saved.' });
         } catch (error) {
@@ -224,7 +227,6 @@ function AgreementsTab() {
         const fullPhoneNumber = `+91${values.phone}`;
 
         try {
-            // Temporarily sign out admin/hr to not interfere with phone linking
             const currentUser = auth.currentUser;
             if (currentUser) await signOut(auth);
 
@@ -469,70 +471,75 @@ function AgreementsTab() {
         )
     };
 
-
     const AgreementPreview = ({ staff }: { staff: Staff }) => {
         const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
         const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
         const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
         
+        const terms = [
+            { title: "Position", text: `The Staff Member is employed in the position of ${staff.role}.` },
+            { title: "Compensation", text: `The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.`},
+            { title: "Duties", text: "The Staff Member is expected to perform all duties related to their role as required by the Company for various events." },
+            { title: "Confidentiality", text: "The Staff Member agrees to keep all Company information confidential." },
+            { title: "Governing Law", text: "This Agreement shall be governed by the laws of India." },
+        ];
+
         return (
-             <div ref={agreementContentRef} className="bg-white text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
-                <div className="p-8">
-                    <header className="flex justify-between items-center pb-4 border-b-2 border-primary">
+             <div ref={agreementContentRef} className="bg-white text-gray-900 font-sans max-h-[70vh] overflow-y-auto p-8">
+                <div className="p-2">
+                    <header className="flex justify-between items-center pb-4 border-b-2 border-gray-800">
                         <div>
-                            <h1 className="text-3xl font-bold text-primary">Employment Agreement</h1>
-                            <p className="text-sm text-muted-foreground">Date: {today}</p>
+                            <h1 className="text-3xl font-bold text-gray-800">Employment Agreement</h1>
+                            <p className="text-sm text-gray-600">Date: {today}</p>
                         </div>
-                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10">
-                            <UtensilsCrossed className="h-8 w-8 text-primary" />
+                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-gray-100">
+                            <UtensilsCrossed className="h-8 w-8 text-gray-700" />
                         </div>
                     </header>
                     
-                    <Separator className="my-6" />
-
-                    <section>
-                        <h2 className="text-xl font-semibold text-primary mb-4">PARTIES</h2>
-                        <div className="pl-4 text-sm space-y-1">
-                            <p><span className="font-semibold">Company:</span> Event Staffing Pro</p>
-                            <p><span className="font-semibold">Staff Member:</span> {staff.name}</p>
+                    <section className="mt-8">
+                        <h2 className="text-xl font-semibold text-gray-700 mb-4">PARTIES</h2>
+                        <div className="pl-4 text-sm space-y-2">
+                            <p><span className="font-semibold w-24 inline-block">Company:</span> Event Staffing Pro</p>
+                            <p><span className="font-semibold w-24 inline-block">Staff Member:</span> {staff.name}</p>
                         </div>
                     </section>
                     
-                    <Separator className="my-6" />
+                    <Separator className="my-6 bg-gray-200" />
 
                     <section>
-                        <h2 className="text-xl font-semibold text-primary mb-4">STAFF DETAILS</h2>
+                        <h2 className="text-xl font-semibold text-gray-700 mb-4">STAFF DETAILS</h2>
                         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
-                            <div><span className="font-semibold">Address:</span> {staff.address}</div>
-                            <div><span className="font-semibold">Role:</span> {staff.role}</div>
-                            <div><span className="font-semibold">ID Number:</span> {staff.idNumber}</div>
-                             <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
-                            <div><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</div>
+                            <p><span className="font-semibold w-32 inline-block">Address:</span> {staff.address}</p>
+                            <p><span className="font-semibold w-32 inline-block">Role:</span> {staff.role}</p>
+                            <p><span className="font-semibold w-32 inline-block">ID Number:</span> {staff.idNumber}</p>
+                            <p><span className="font-semibold w-32 inline-block">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</p>
+                            <p><span className="font-semibold w-32 inline-block">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</p>
                         </div>
                     </section>
 
-                    <Separator className="my-6" />
+                    <Separator className="my-6 bg-gray-200" />
 
                     <section className="text-sm space-y-4">
-                        <h2 className="text-xl font-semibold text-primary mb-4">TERMS &amp; CONDITIONS</h2>
-                        <div className="space-y-3 pl-4">
-                            <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
-                            <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of &#8377;{compensationAmount}.</p>
-                            <p><strong>3. Duties:</strong> The Staff Member is expected to perform all duties related to their role as required by the Company for various events.</p>
-                            <p><strong>4. Confidentiality:</strong> The Staff Member agrees to keep all Company information confidential.</p>
-                            <p><strong>5. Governing Law:</strong> This Agreement shall be governed by the laws of India.</p>
-                        </div>
+                        <h2 className="text-xl font-semibold text-gray-700 mb-4">TERMS &amp; CONDITIONS</h2>
+                        <ol className="list-decimal list-outside space-y-3 pl-8">
+                            {terms.map((term, index) => (
+                                <li key={index}>
+                                    <span className="font-bold">{term.title}:</span> {term.text}
+                                </li>
+                            ))}
+                        </ol>
                     </section>
 
-                    <footer className="mt-16 pt-8 border-t-2 border-dashed">
+                    <footer className="mt-16 pt-8">
                         <div className="grid grid-cols-2 gap-16 text-sm">
                             <div>
-                                <div className="w-full h-12 border-b border-gray-400"></div>
-                                <p className="mt-2 font-semibold">Event Staffing Pro</p>
+                                <div className="w-full h-12 border-b-2 border-gray-400"></div>
+                                <p className="mt-2 font-semibold text-center">Event Staffing Pro</p>
                             </div>
                             <div>
-                                <div className="w-full h-12 border-b border-gray-400"></div>
-                                <p className="mt-2 font-semibold">{staff.name}</p>
+                                <div className="w-full h-12 border-b-2 border-gray-400"></div>
+                                <p className="mt-2 font-semibold text-center">{staff.name}</p>
                             </div>
                         </div>
                     </footer>
@@ -586,10 +593,10 @@ function AgreementsTab() {
                                 Preview the digital agreement below. It can be downloaded as a PDF.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="px-6">
+                        <div className="px-2">
                            <AgreementPreview staff={selectedStaff} />
                         </div>
-                        <DialogFooter className="bg-gray-100 p-6 border-t">
+                        <DialogFooter className="bg-gray-200/80 p-4 border-t">
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
