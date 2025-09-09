@@ -188,8 +188,7 @@ export default function AssignStaffPage() {
     
     const unassignedStaff = allStaff.filter(staff => 
         waiterRoles.includes(staff.role) && // Is a waiter type
-        !order.assignedStaff?.includes(staff.id) && // Is not already assigned to this order
-        availability[staff.id] !== 'unavailable' // Is not marked as unavailable for the event date
+        !order.assignedStaff?.includes(staff.id) // Is not already assigned to this order
     );
 
     const isDataLoading = loadingStaff || loadingOrders || loadingAvailability;
@@ -220,8 +219,8 @@ export default function AssignStaffPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <Card>
                     <CardHeader>
-                        <CardTitle>Available Staff</CardTitle>
-                        <CardDescription>Assign staff from the list below to this event. Staff marked 'Unavailable' are hidden.</CardDescription>
+                        <CardTitle>Unassigned Staff</CardTitle>
+                        <CardDescription>Assign staff to this event. Staff marked 'Unavailable' cannot be assigned.</CardDescription>
                     </CardHeader>
                     <CardContent>
                          {isDataLoading ? <Skeleton className="h-40 w-full" /> : (
@@ -236,27 +235,30 @@ export default function AssignStaffPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {unassignedStaff.map(staff => (
-                                        <TableRow key={staff.id}>
-                                            <TableCell>{staff.name}</TableCell>
-                                            <TableCell><Badge variant="secondary">{capitalize(staff.role)}</Badge></TableCell>
-                                            <TableCell>{getAvailabilityBadge(staff.id)}</TableCell>
-                                            <TableCell className='text-center'>
-                                                <Badge variant={staffAssignments.get(staff.id)! > 0 ? "destructive" : "default"}>
-                                                    {staffAssignments.get(staff.id) || 0}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button size="sm" variant="outline" onClick={() => handleAssignStaff(staff.id)}>
-                                                    <PlusCircle className="mr-2 h-4 w-4" />
-                                                    Assign
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {unassignedStaff.map(staff => {
+                                        const isUnavailable = availability[staff.id] === 'unavailable';
+                                        return (
+                                            <TableRow key={staff.id} className={isUnavailable ? 'opacity-60' : ''}>
+                                                <TableCell>{staff.name}</TableCell>
+                                                <TableCell><Badge variant="secondary">{capitalize(staff.role)}</Badge></TableCell>
+                                                <TableCell>{getAvailabilityBadge(staff.id)}</TableCell>
+                                                <TableCell className='text-center'>
+                                                    <Badge variant={staffAssignments.get(staff.id)! > 0 ? "destructive" : "default"}>
+                                                        {staffAssignments.get(staff.id) || 0}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button size="sm" variant="outline" onClick={() => handleAssignStaff(staff.id)} disabled={isUnavailable}>
+                                                        <PlusCircle className="mr-2 h-4 w-4" />
+                                                        Assign
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
                                     {unassignedStaff.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-muted-foreground h-24">All available staff have been assigned.</TableCell>
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground h-24">All waiter-level staff have been assigned.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
