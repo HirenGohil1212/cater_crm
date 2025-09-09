@@ -493,11 +493,11 @@ function AgreementsTab() {
                     <section>
                         <h2 className="text-xl font-semibold text-primary mb-2">Staff Details</h2>
                         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
-                            <p><span className="font-semibold">Address:</span> {staff.address}</p>
-                            <p><span className="font-semibold">Role:</span> {staff.role}</p>
-                            <p><span className="font-semibold">ID Number:</span> {staff.idNumber}</p>
-                            <p><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</p>
-                            <p><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</p>
+                            <div><span className="font-semibold">Address:</span> {staff.address}</div>
+                            <div><span className="font-semibold">Role:</span> {staff.role}</div>
+                            <div><span className="font-semibold">ID Number:</span> {staff.idNumber}</div>
+                            <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
+                            <div><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</div>
                         </div>
                     </section>
 
