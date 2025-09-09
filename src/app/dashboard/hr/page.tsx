@@ -163,48 +163,52 @@ function AgreementsTab() {
         const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
 
         return `
-EMPLOYMENT AGREEMENT
-
+        EMPLOYMENT AGREEMENT
+        
 Date: ${today}
 
 PARTIES:
-1. Event Staffing Pro ("the Company")
-2. ${staff.name} ("the Staff Member")
+  1. Event Staffing Pro ("the Company")
+  2. ${staff.name} ("the Staff Member")
 
 STAFF DETAILS:
-- Name: ${staff.name}
-- Address: ${staff.address}
-- Role: ${staff.role}
-- ID Number: ${staff.idNumber}
-- Bank Account: ${staff.bankAccountNumber || 'N/A'}
-- IFSC Code: ${staff.bankIfscCode || 'N/A'}
+  - Name:             ${staff.name}
+  - Address:          ${staff.address}
+  - Role:             ${staff.role}
+  - ID Number:        ${staff.idNumber}
+  - Bank Account:     ${staff.bankAccountNumber || 'N/A'}
+  - IFSC Code:        ${staff.bankIfscCode || 'N/A'}
+
+TERMS & CONDITIONS:
 
 1. POSITION
-The Staff Member is employed in the position of ${staff.role}.
+   The Staff Member is employed in the position of ${staff.role}.
 
 2. COMPENSATION
-The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.
+   The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.
 
 3. DUTIES AND RESPONSIBILITIES
-The Staff Member is expected to perform all duties related to the role of ${staff.role} as required by the Company for various events.
+   The Staff Member is expected to perform all duties related to the role of ${staff.role} as required by the Company for various events.
 
 4. TERM OF EMPLOYMENT
-This is an at-will employment relationship.
+   This is an at-will employment relationship.
 
 5. CONFIDENTIALITY
-The Staff Member agrees to keep all Company information confidential.
+   The Staff Member agrees to keep all Company information confidential.
 
 6. TERMINATION
-The Company may terminate this agreement at any time for any reason.
+   The Company may terminate this agreement at any time for any reason.
 
 7. GOVERNING LAW
-This Agreement shall be governed by the laws of India.
+   This Agreement shall be governed by the laws of India.
 
 ---
 Signed,
 
+
 _________________________
 Event Staffing Pro
+
 
 _________________________
 ${staff.name}
