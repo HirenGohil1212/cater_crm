@@ -12,11 +12,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
 import { Skeleton } from "./ui/skeleton";
 import { Button } from "./ui/button";
-import { Users } from "lucide-react";
+import { Users, CheckCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
 
 type Order = {
   id: string;
@@ -42,6 +43,8 @@ async function getUserName(userId: string): Promise<string> {
 export function AllOrdersTableManager() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const ordersRef = collection(db, "orders");
@@ -73,6 +76,29 @@ export function AllOrdersTableManager() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleConfirmOrder = async (orderId: string) => {
+    setConfirmingId(orderId);
+    const orderRef = doc(db, 'orders', orderId);
+    try {
+        await updateDoc(orderRef, {
+            status: 'Confirmed'
+        });
+        toast({
+            title: "Order Confirmed",
+            description: "The client will be notified and you can now assign staff."
+        });
+    } catch(e) {
+        console.error("Failed to confirm order: ", e);
+        toast({
+            title: "Confirmation Failed",
+            description: "Could not update the order status. Please try again.",
+            variant: "destructive"
+        })
+    } finally {
+        setConfirmingId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -132,12 +158,28 @@ export function AllOrdersTableManager() {
               </Badge>
             </TableCell>
              <TableCell className="text-right">
-                <Link href={`/dashboard/operational-manager/assign/${order.id}`} passHref>
-                    <Button variant="outline" size="sm">
-                        <Users className="mr-2 h-4 w-4" />
-                        Manage Staff
+                {order.status === 'Pending' ? (
+                    <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleConfirmOrder(order.id)}
+                        disabled={confirmingId === order.id}
+                    >
+                       {confirmingId === order.id ? (
+                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                       ) : (
+                           <CheckCircle className="mr-2 h-4 w-4" />
+                       )}
+                        Confirm Order
                     </Button>
-                </Link>
+                ) : (
+                    <Link href={`/dashboard/operational-manager/assign/${order.id}`} passHref>
+                        <Button variant="outline" size="sm">
+                            <Users className="mr-2 h-4 w-4" />
+                            Manage Staff
+                        </Button>
+                    </Link>
+                )}
              </TableCell>
           </TableRow>
         ))}
