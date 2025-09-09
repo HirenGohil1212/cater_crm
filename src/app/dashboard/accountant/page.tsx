@@ -30,18 +30,25 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, DollarSign, Users, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, where } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GenerateInvoiceOutput } from "@/ai/flows/generate-invoice-flow";
 import { generateInvoice } from "@/ai/flows/generate-invoice-flow";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { format } from "date-fns";
 
 type Order = {
   id: string;
@@ -52,19 +59,181 @@ type Order = {
   userId: string;
   userName?: string;
   invoiceStatus: "Pending" | "Generated";
+  createdAt: any;
 };
 
-type Invoice = GenerateInvoiceOutput;
+type Invoice = GenerateInvoiceOutput & {
+    id: string;
+};
+
+type Client = {
+    id: string;
+    name: string;
+    companyName: string;
+};
+
+type LedgerEntry = {
+    date: string;
+    description: string;
+    invoiceNumber: string;
+    debit: number;
+    credit: number;
+};
 
 
 async function getUserName(userId: string): Promise<string> {
     const userDocRef = doc(db, "users", userId);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
-        return userDocSnap.data().name || "Unknown User";
+        return userDocSnap.data().companyName || userDocSnap.data().name || "Unknown User";
     }
     return "Unknown User";
 }
+
+
+function ClientLedgers() {
+    const [clients, setClients] = useState<Client[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [ledgerData, setLedgerData] = useState<Record<string, LedgerEntry[]>>({});
+    const [loadingLedger, setLoadingLedger] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        const q = query(collection(db, "users"), where("role", "==", "consumer"), orderBy("companyName"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const clientList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                name: doc.data().name,
+                companyName: doc.data().companyName
+            } as Client));
+            setClients(clientList);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching clients:", error);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const fetchLedgerForClient = useCallback(async (clientId: string) => {
+        if (ledgerData[clientId] || loadingLedger[clientId]) return;
+
+        setLoadingLedger(prev => ({ ...prev, [clientId]: true }));
+
+        try {
+            // Fetch invoices for the client
+            const invoicesRef = collection(db, "invoices");
+            const invoicesQuery = query(invoicesRef, where("client.id", "==", clientId));
+            const invoiceSnap = await getDocs(invoicesQuery);
+            
+            const entries: LedgerEntry[] = invoiceSnap.docs.map(doc => {
+                const data = doc.data() as Invoice;
+                return {
+                    date: data.invoiceDate,
+                    description: `Invoice for Event on ${data.eventDate}`,
+                    invoiceNumber: data.invoiceNumber,
+                    debit: data.totalAmount,
+                    credit: 0,
+                };
+            });
+
+            // You could also fetch payments here and add them as credit entries
+
+            entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            
+            setLedgerData(prev => ({ ...prev, [clientId]: entries }));
+
+        } catch (error) {
+            console.error("Error fetching ledger data:", error);
+        } finally {
+            setLoadingLedger(prev => ({ ...prev, [clientId]: false }));
+        }
+    }, [ledgerData, loadingLedger]);
+
+    const renderLedgerTable = (clientId: string) => {
+        const entries = ledgerData[clientId] || [];
+        let balance = 0;
+
+        return (
+            <div className="p-2 bg-muted/50 rounded-md">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Invoice #</TableHead>
+                            <TableHead className="text-right">Debit</TableHead>
+                            <TableHead className="text-right">Credit</TableHead>
+                            <TableHead className="text-right">Balance</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {loadingLedger[clientId] && (
+                            <TableRow>
+                                <TableCell colSpan={6} className="text-center">
+                                    <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                                </TableCell>
+                            </TableRow>
+                        )}
+                        {!loadingLedger[clientId] && entries.length === 0 && (
+                             <TableRow>
+                                <TableCell colSpan={6} className="text-center h-24">No transactions found for this client.</TableCell>
+                            </TableRow>
+                        )}
+                        {entries.map((entry, index) => {
+                            balance += entry.debit - entry.credit;
+                            return (
+                                <TableRow key={index}>
+                                    <TableCell>{entry.date}</TableCell>
+                                    <TableCell>{entry.description}</TableCell>
+                                    <TableCell>{entry.invoiceNumber}</TableCell>
+                                    <TableCell className="text-right">₹{entry.debit.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">₹{entry.credit.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-medium">₹{balance.toFixed(2)}</TableCell>
+                                </TableRow>
+                            )
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
+        )
+    }
+
+    if (loading) {
+        return <Skeleton className="h-64 w-full" />
+    }
+
+    if(clients.length === 0) {
+        return <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 border-2 border-dashed rounded-lg bg-muted/30">
+            <Users className="h-16 w-16 mb-4" />
+            <h3 className="text-xl font-semibold">No Clients Found</h3>
+            <p>Once clients are added, their ledgers will appear here.</p>
+        </div>
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Client Ledgers</CardTitle>
+                <CardDescription>View detailed financial ledgers for each client.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Accordion type="single" collapsible className="w-full">
+                    {clients.map(client => (
+                        <AccordionItem value={client.id} key={client.id}>
+                            <AccordionTrigger onOpen={() => fetchLedgerForClient(client.id)}>
+                                {client.companyName}
+                            </AccordionTrigger>
+                            <AccordionContent>
+                               {renderLedgerTable(client.id)}
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
+            </CardContent>
+        </Card>
+    );
+}
+
 
 
 function InvoiceList() {
@@ -90,8 +259,9 @@ function InvoiceList() {
                   status: data.status,
                   menuType: data.menuType,
                   userId: data.userId,
-userName: data.companyName || userName,
+                  userName: userName,
                   invoiceStatus: data.invoiceStatus || "Pending",
+                  createdAt: data.createdAt
               };
           });
   
@@ -111,19 +281,19 @@ userName: data.companyName || userName,
         try {
             const invoiceData = await generateInvoice({ orderId: order.id });
             
-            // Here you would save the invoice to a new 'invoices' collection
-            // For now, we'll just update the order status
+            // Add client ID to invoice data before saving
+            const invoiceWithClient = {
+                ...invoiceData,
+                client: { ...invoiceData.client, id: order.userId }
+            };
+
             const orderRef = doc(db, 'orders', order.id);
             await updateDoc(orderRef, { invoiceStatus: 'Generated' });
             
-            // And also store the invoice data itself
             const invoiceRef = doc(db, 'invoices', order.id);
-            await setDoc(invoiceRef, invoiceData);
+            await setDoc(invoiceRef, invoiceWithClient);
 
             toast({ title: "Invoice Generated", description: `Invoice for order ${order.id} has been created.` });
-            
-            // Optimistically update the UI, or let the snapshot listener do it.
-            // setOrders(orders.map(o => o.id === order.id ? { ...o, invoiceStatus: 'Generated' } : o));
 
         } catch (error) {
             console.error("Error generating invoice:", error);
@@ -137,7 +307,7 @@ userName: data.companyName || userName,
         const invoiceRef = doc(db, 'invoices', orderId);
         const invoiceSnap = await getDoc(invoiceRef);
         if(invoiceSnap.exists()){
-            setSelectedInvoice(invoiceSnap.data() as Invoice);
+            setSelectedInvoice({id: invoiceSnap.id, ...invoiceSnap.data()} as Invoice);
             setIsViewOpen(true);
         } else {
              toast({ variant: 'destructive', title: 'Not Found', description: 'Invoice data not found.' });
@@ -324,20 +494,8 @@ export default function AccountantDashboardPage() {
                 </CardContent>
               </Card>
           </TabsContent>
-          <TabsContent value="ledgers">
-              <Card>
-                 <CardHeader>
-                    <CardTitle>Client Ledgers</CardTitle>
-                    <CardDescription>View detailed financial ledgers for each client.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                   <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 border-2 border-dashed rounded-lg bg-muted/30">
-                        <Users className="h-16 w-16 mb-4" />
-                        <h3 className="text-xl font-semibold">Client Ledgers</h3>
-                        <p>Feature coming soon.</p>
-                    </div>
-                </CardContent>
-              </Card>
+          <TabsContent value="ledgers" className="mt-4">
+              <ClientLedgers />
           </TabsContent>
           <TabsContent value="payouts">
               <Card>

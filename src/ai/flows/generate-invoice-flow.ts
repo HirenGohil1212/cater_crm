@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI flow to generate a detailed invoice for a client event.
@@ -9,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 
@@ -25,6 +26,7 @@ const LineItemSchema = z.object({
 });
 
 const ClientInfoSchema = z.object({
+    id: z.string(),
     name: z.string(),
     address: z.string(),
     gstin: z.string().optional(),
@@ -66,6 +68,7 @@ async function getInvoiceContext(orderId: string) {
     const userData = userSnap.data();
 
     return {
+        userId: orderData.userId,
         eventDate: orderData.date,
         attendees: orderData.attendees,
         menuType: orderData.menuType,
@@ -85,7 +88,7 @@ export async function generateInvoice(input: GenerateInvoiceInput): Promise<Gene
 
 const prompt = ai.definePrompt({
     name: 'generateInvoicePrompt',
-    input: { schema: z.any() }, // Input is now the rich context object
+    input: { schema: z.any() }, // Input is the rich context object
     output: { schema: GenerateInvoiceOutputSchema },
     prompt: `
       You are an expert accounting assistant for an event staffing company.
@@ -93,7 +96,7 @@ const prompt = ai.definePrompt({
 
       **INSTRUCTIONS:**
       1.  Create a unique invoice number. A combination of the current date and a short random string is fine (e.g., INV-YYYYMMDD-XXXX).
-      2.  The invoice date should be today's date.
+      2.  The invoice date should be today's date, formatted as YYYY-MM-DD.
       3.  Calculate the cost of services. Use the following rates:
           - Base catering cost per attendee: ₹1200 for 'veg', ₹1500 for 'non-veg'.
           - Service charge: 10% of the total catering cost.
@@ -102,8 +105,10 @@ const prompt = ai.definePrompt({
       6.  Calculate GST at a fixed rate of 18% on the subtotal.
       7.  Calculate the final total amount (subtotal + GST).
       8.  Fill in all client details as provided.
+      9.  Crucially, ensure the client's 'id' field is set to the provided 'userId'.
 
       **EVENT & CLIENT DATA:**
+      - Client User ID: {{{userId}}}
       - Event Date: {{{eventDate}}}
       - Number of Attendees: {{{attendees}}}
       - Menu Type: {{{menuType}}}
