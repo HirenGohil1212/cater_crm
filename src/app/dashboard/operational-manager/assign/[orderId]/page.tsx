@@ -21,13 +21,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, DocumentData, query } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, DocumentData, query, getDocs } from "firebase/firestore";
 import { PlusCircle, MinusCircle, ArrowLeft } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { capitalize } from '@/lib/utils';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
 
 
 type Order = DocumentData & {
@@ -36,6 +37,7 @@ type Order = DocumentData & {
 }
 
 const waiterRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler'];
+type AvailabilityStatus = "available" | "unavailable";
 
 export default function AssignStaffPage() {
     const { toast } = useToast();
@@ -45,10 +47,12 @@ export default function AssignStaffPage() {
     const [order, setOrder] = useState<Order | null>(null);
     const [allStaff, setAllStaff] = useState<Staff[]>([]);
     const [allOrders, setAllOrders] = useState<Order[]>([]);
+    const [availability, setAvailability] = useState<Record<string, AvailabilityStatus>>({});
     const [assignedStaffDetails, setAssignedStaffDetails] = useState<Staff[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingStaff, setLoadingStaff] = useState(true);
     const [loadingOrders, setLoadingOrders] = useState(true);
+    const [loadingAvailability, setLoadingAvailability] = useState(true);
 
     // Fetch Order Details
     useEffect(() => {
@@ -85,6 +89,29 @@ export default function AssignStaffPage() {
         });
         return () => unsub();
     }, []);
+
+    // Fetch Availability for the event date
+    useEffect(() => {
+        if (!order?.date) return;
+
+        const dateString = format(new Date(order.date), 'yyyy-MM-dd');
+        const fetchAvailability = async () => {
+            setLoadingAvailability(true);
+            const availabilitySnapshot = await getDocs(collection(db, 'availability'));
+            const availabilityData: Record<string, AvailabilityStatus> = {};
+            availabilitySnapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.dates && data.dates[dateString]) {
+                    availabilityData[doc.id] = data.dates[dateString];
+                }
+            });
+            setAvailability(availabilityData);
+            setLoadingAvailability(false);
+        };
+
+        fetchAvailability();
+    }, [order?.date]);
+
 
     // Fetch details of assigned staff for the current order
     useEffect(() => {
@@ -160,10 +187,24 @@ export default function AssignStaffPage() {
     }
     
     const unassignedStaff = allStaff.filter(staff => 
-        waiterRoles.includes(staff.role) && !order.assignedStaff?.includes(staff.id)
+        waiterRoles.includes(staff.role) && // Is a waiter type
+        !order.assignedStaff?.includes(staff.id) && // Is not already assigned to this order
+        availability[staff.id] !== 'unavailable' // Is not marked as unavailable for the event date
     );
 
-    const isDataLoading = loadingStaff || loadingOrders;
+    const isDataLoading = loadingStaff || loadingOrders || loadingAvailability;
+    
+    const getAvailabilityBadge = (staffId: string) => {
+        const status = availability[staffId];
+        if (status === 'available') {
+            return <Badge variant="default">Available</Badge>;
+        }
+        if (status === 'unavailable') {
+            return <Badge variant="destructive">Unavailable</Badge>;
+        }
+        return <Badge variant="secondary">Not Set</Badge>;
+    }
+
 
     return (
         <div className="space-y-6">
@@ -173,14 +214,14 @@ export default function AssignStaffPage() {
                     Back to All Events
                 </Link>
                 <h1 className="text-3xl font-bold tracking-tight">Assign Staff for Order</h1>
-                <p className="text-muted-foreground">Event Date: {order.date}</p>
+                <p className="text-muted-foreground">Event Date: {format(new Date(order.date), 'PPP')}</p>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <Card>
                     <CardHeader>
                         <CardTitle>Available Staff</CardTitle>
-                        <CardDescription>Assign staff from the list below to this event.</CardDescription>
+                        <CardDescription>Assign staff from the list below to this event. Staff marked 'Unavailable' are hidden.</CardDescription>
                     </CardHeader>
                     <CardContent>
                          {isDataLoading ? <Skeleton className="h-40 w-full" /> : (
@@ -189,7 +230,8 @@ export default function AssignStaffPage() {
                                     <TableRow>
                                         <TableHead>Name</TableHead>
                                         <TableHead>Role</TableHead>
-                                        <TableHead>Current Assignments</TableHead>
+                                        <TableHead>Availability</TableHead>
+                                        <TableHead>Assignments</TableHead>
                                         <TableHead className="text-right">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -198,6 +240,7 @@ export default function AssignStaffPage() {
                                         <TableRow key={staff.id}>
                                             <TableCell>{staff.name}</TableCell>
                                             <TableCell><Badge variant="secondary">{capitalize(staff.role)}</Badge></TableCell>
+                                            <TableCell>{getAvailabilityBadge(staff.id)}</TableCell>
                                             <TableCell className='text-center'>
                                                 <Badge variant={staffAssignments.get(staff.id)! > 0 ? "destructive" : "default"}>
                                                     {staffAssignments.get(staff.id) || 0}
@@ -213,7 +256,7 @@ export default function AssignStaffPage() {
                                     ))}
                                     {unassignedStaff.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground h-24">All available staff have been assigned.</TableCell>
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground h-24">All available staff have been assigned.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
