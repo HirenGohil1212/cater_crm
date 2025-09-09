@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -118,7 +119,7 @@ function AgreementsTab() {
     const staffType = form.watch('staffType');
 
 
-     useEffect(() => {
+    useEffect(() => {
         const waiterRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler'];
         const q = query(collection(db, "staff"), where('role', 'in', waiterRoles));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -176,7 +177,11 @@ function AgreementsTab() {
             return;
         }
 
-        html2canvas(content, { scale: 2 }).then(canvas => {
+        html2canvas(content, { 
+            scale: 2,
+            backgroundColor: '#ffffff', // Set a white background
+            useCORS: true // Important for external images if any
+        }).then(canvas => {
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'px', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -187,12 +192,17 @@ function AgreementsTab() {
             const widthInPdf = pdfWidth;
             const heightInPdf = widthInPdf / ratio;
             
-            if (heightInPdf > pdfHeight) {
-                // Not handling multi-page for now, just fit to page
-                 pdf.addImage(imgData, 'PNG', 0, 0, widthInPdf, pdfHeight);
-            } else {
-                 pdf.addImage(imgData, 'PNG', 0, 0, widthInPdf, heightInPdf);
+            // Adjust padding/margin inside the PDF
+            const padding = 20; 
+            const contentWidth = pdfWidth - (padding * 2);
+            const contentHeight = (contentWidth) / ratio;
+
+            let finalHeight = contentHeight;
+            if (finalHeight > pdfHeight - (padding * 2)) {
+                 finalHeight = pdfHeight - (padding * 2);
             }
+
+            pdf.addImage(imgData, 'PNG', padding, padding, contentWidth, finalHeight);
 
             pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
             toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
@@ -457,63 +467,65 @@ function AgreementsTab() {
         const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
         
         return (
-            <div ref={agreementContentRef} className="bg-white p-8 rounded-lg shadow-lg text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
-                <header className="flex justify-between items-center pb-4 border-b-2 border-primary">
-                    <div>
-                        <h1 className="text-3xl font-bold text-primary">Employment Agreement</h1>
-                        <p className="text-sm text-muted-foreground">Date: {today}</p>
-                    </div>
-                     <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10">
-                        <UtensilsCrossed className="h-8 w-8 text-primary" />
-                    </div>
-                </header>
-
-                <section className="mt-8">
-                    <h2 className="text-xl font-semibold text-primary mb-2">Parties</h2>
-                    <div className="pl-4 text-sm space-y-1">
-                        <p><span className="font-semibold">Company:</span> Event Staffing Pro</p>
-                        <p><span className="font-semibold">Staff Member:</span> {staff.name}</p>
-                    </div>
-                </section>
-                
-                <Separator className="my-6" />
-
-                <section>
-                    <h2 className="text-xl font-semibold text-primary mb-2">Staff Details</h2>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
-                        <p><span className="font-semibold">Address:</span> {staff.address}</p>
-                        <p><span className="font-semibold">Role:</span> {staff.role}</p>
-                        <p><span className="font-semibold">ID Number:</span> {staff.idNumber}</p>
-                        <p><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</p>
-                        <p><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</p>
-                    </div>
-                </section>
-
-                <Separator className="my-6" />
-
-                <section className="text-sm space-y-4">
-                    <h2 className="text-xl font-semibold text-primary mb-2">Terms & Conditions</h2>
-                    <div className="space-y-3 pl-4">
-                        <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
-                        <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of ₹{compensationAmount}.</p>
-                        <p><strong>3. Duties:</strong> The Staff Member is expected to perform all duties related to their role as required by the Company for various events.</p>
-                        <p><strong>4. Confidentiality:</strong> The Staff Member agrees to keep all Company information confidential.</p>
-                        <p><strong>5. Governing Law:</strong> This Agreement shall be governed by the laws of India.</p>
-                    </div>
-                </section>
-
-                <footer className="mt-16 pt-8 border-t-2 border-dashed">
-                    <div className="grid grid-cols-2 gap-16 text-sm">
+            <div ref={agreementContentRef} className="bg-white text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
+                <div className="p-8">
+                    <header className="flex justify-between items-center pb-4 border-b-2 border-primary">
                         <div>
-                            <div className="w-full h-12 border-b border-gray-400"></div>
-                            <p className="mt-2 font-semibold">Event Staffing Pro</p>
+                            <h1 className="text-3xl font-bold text-primary">Employment Agreement</h1>
+                            <p className="text-sm text-muted-foreground">Date: {today}</p>
                         </div>
-                        <div>
-                            <div className="w-full h-12 border-b border-gray-400"></div>
-                            <p className="mt-2 font-semibold">{staff.name}</p>
+                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10">
+                            <UtensilsCrossed className="h-8 w-8 text-primary" />
                         </div>
-                    </div>
-                </footer>
+                    </header>
+
+                    <section className="mt-8">
+                        <h2 className="text-xl font-semibold text-primary mb-2">Parties</h2>
+                        <div className="pl-4 text-sm space-y-1">
+                            <p><span className="font-semibold">Company:</span> Event Staffing Pro</p>
+                            <p><span className="font-semibold">Staff Member:</span> {staff.name}</p>
+                        </div>
+                    </section>
+                    
+                    <Separator className="my-6" />
+
+                    <section>
+                        <h2 className="text-xl font-semibold text-primary mb-2">Staff Details</h2>
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
+                            <p><span className="font-semibold">Address:</span> {staff.address}</p>
+                            <p><span className="font-semibold">Role:</span> {staff.role}</p>
+                            <p><span className="font-semibold">ID Number:</span> {staff.idNumber}</p>
+                            <p><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</p>
+                            <p><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</p>
+                        </div>
+                    </section>
+
+                    <Separator className="my-6" />
+
+                    <section className="text-sm space-y-4">
+                        <h2 className="text-xl font-semibold text-primary mb-2">Terms & Conditions</h2>
+                        <div className="space-y-3 pl-4">
+                            <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
+                            <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of ₹{compensationAmount}.</p>
+                            <p><strong>3. Duties:</strong> The Staff Member is expected to perform all duties related to their role as required by the Company for various events.</p>
+                            <p><strong>4. Confidentiality:</strong> The Staff Member agrees to keep all Company information confidential.</p>
+                            <p><strong>5. Governing Law:</strong> This Agreement shall be governed by the laws of India.</p>
+                        </div>
+                    </section>
+
+                    <footer className="mt-16 pt-8 border-t-2 border-dashed">
+                        <div className="grid grid-cols-2 gap-16 text-sm">
+                            <div>
+                                <div className="w-full h-12 border-b border-gray-400"></div>
+                                <p className="mt-2 font-semibold">Event Staffing Pro</p>
+                            </div>
+                            <div>
+                                <div className="w-full h-12 border-b border-gray-400"></div>
+                                <p className="mt-2 font-semibold">{staff.name}</p>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
             </div>
         )
     };
@@ -554,19 +566,19 @@ function AgreementsTab() {
             </Card>
 
             <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
-            <DialogContent className="sm:max-w-3xl bg-gray-100">
+            <DialogContent className="sm:max-w-3xl bg-gray-100 p-0">
                 {selectedStaff && (
                     <>
-                        <DialogHeader>
+                        <DialogHeader className="p-6 pb-0">
                             <DialogTitle>Staff Agreement: {selectedStaff.name}</DialogTitle>
                             <DialogDescription>
                                 Preview the digital agreement below. It can be downloaded as a PDF.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="py-4">
-                            <AgreementPreview staff={selectedStaff} />
+                        <div className="px-6">
+                           <AgreementPreview staff={selectedStaff} />
                         </div>
-                        <DialogFooter className="bg-gray-100 pt-4">
+                        <DialogFooter className="bg-gray-100 p-6 border-t">
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
