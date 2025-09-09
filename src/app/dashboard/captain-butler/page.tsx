@@ -7,6 +7,7 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardFooter,
 } from "@/components/ui/card";
 import {
     Table,
@@ -27,16 +28,20 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileClock, Loader2 } from "lucide-react";
+import { CheckCircle, FileClock, Loader2, CalendarCheck, FileEdit } from "lucide-react";
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
+import { Calendar } from "@/components/ui/calendar";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 
 type Order = {
@@ -53,8 +58,70 @@ async function getClientNameForOrder(userId: string): Promise<string> {
     return userDoc.exists() ? userDoc.data().companyName || userDoc.data().name : 'Unknown Client';
 }
 
+function AvailabilityTab() {
+    const [dates, setDates] = useState<DateRange | undefined>();
+    const [isAvailable, setIsAvailable] = useState(true);
+    const { toast } = useToast();
 
-export default function CaptainButlerDashboardPage() {
+    const handleSaveAvailability = () => {
+        if (!dates || !dates.from) {
+            toast({
+                variant: 'destructive',
+                title: 'No dates selected',
+                description: 'Please select a date or a range of dates.',
+            });
+            return;
+        }
+
+        toast({
+            title: 'Availability Updated',
+            description: `You are now set as ${isAvailable ? 'Available' : 'Unavailable'} from ${format(dates.from, 'PPP')}${dates.to ? ` to ${format(dates.to, 'PPP')}` : ''}.`,
+        });
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Manage Your Availability</CardTitle>
+                <CardDescription>Select dates on the calendar and set your availability status. This prevents you from being scheduled on your off-days.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-2 gap-8">
+                <div className="flex justify-center">
+                    <Calendar
+                        mode="range"
+                        selected={dates}
+                        onSelect={setDates}
+                        className="rounded-md border"
+                        disabled={(date) =>
+                            date < new Date(new Date().setDate(new Date().getDate() - 1))
+                          }
+                    />
+                </div>
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-lg font-medium">Set Status for Selected Dates</h3>
+                        <p className="text-sm text-muted-foreground">
+                            {dates?.from ? `For: ${format(dates.from, "LLL dd, y")}${dates.to ? ` - ${format(dates.to, "LLL dd, y")}`: ''}` : 'Select dates to set your status.'}
+                        </p>
+                    </div>
+                    <div className="flex items-center space-x-4 rounded-lg border p-4">
+                        <Switch id="availability-switch" checked={isAvailable} onCheckedChange={setIsAvailable} disabled={!dates?.from} />
+                        <Label htmlFor="availability-switch" className="flex flex-col">
+                            <span className="font-medium">{isAvailable ? 'Available' : 'Unavailable'}</span>
+                            <span className="text-xs text-muted-foreground">{isAvailable ? 'You can be assigned to events.' : 'You will not be scheduled.'}</span>
+                        </Label>
+                    </div>
+                </div>
+            </CardContent>
+            <CardFooter className='border-t pt-6'>
+                <Button onClick={handleSaveAvailability} disabled={!dates?.from} className="ml-auto bg-accent text-accent-foreground hover:bg-accent/90">Save Availability</Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+
+function EventManagementTab() {
     const [events, setEvents] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
@@ -217,12 +284,38 @@ export default function CaptainButlerDashboardPage() {
     return (
          <Card>
             <CardHeader>
-                <CardTitle>Captain's Dashboard</CardTitle>
+                <CardTitle>Event Management</CardTitle>
                 <CardDescription>Oversee and conclude your assigned events.</CardDescription>
             </CardHeader>
             <CardContent>
                 {renderContent()}
             </CardContent>
         </Card>
+    )
+}
+
+export default function CaptainButlerDashboardPage() {
+    return (
+        <Tabs defaultValue="events">
+            <Card>
+                 <CardHeader>
+                    <CardTitle>Captain's Dashboard</CardTitle>
+                    <CardDescription>Oversee events and manage your availability.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="events"><FileEdit className="mr-2 h-4 w-4" />Event Management</TabsTrigger>
+                        <TabsTrigger value="availability"><CalendarCheck className="mr-2 h-4 w-4" />My Availability</TabsTrigger>
+                    </TabsList>
+                </CardContent>
+            </Card>
+
+            <TabsContent value="events" className="mt-4">
+                <EventManagementTab />
+            </TabsContent>
+            <TabsContent value="availability" className="mt-4">
+                <AvailabilityTab />
+            </TabsContent>
+        </Tabs>
     )
 }
