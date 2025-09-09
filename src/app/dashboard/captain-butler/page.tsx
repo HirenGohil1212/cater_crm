@@ -179,7 +179,7 @@ function EventManagementTab() {
                         <TableCell>
                              <Badge variant={event.status === "Completed" ? "default" : (event.status === "Confirmed" ? "secondary" : "destructive")}>{event.status}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right space-x-2">
                            <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button 
@@ -206,6 +206,13 @@ function EventManagementTab() {
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                            </AlertDialog>
+                           <Button 
+                             size="sm" 
+                             variant="outline"
+                             disabled={event.status !== 'Confirmed' || isUpdating === event.id}
+                             onClick={() => handleEndEvent(event.id)}>
+                                Test End
+                           </Button>
                         </TableCell>
                     </TableRow>
                    ))}
