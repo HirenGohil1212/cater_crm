@@ -179,31 +179,32 @@ function AgreementsTab() {
 
         html2canvas(content, { 
             scale: 2,
-            backgroundColor: '#ffffff', // Set a white background
-            useCORS: true // Important for external images if any
+            backgroundColor: '#ffffff',
+            useCORS: true
         }).then(canvas => {
             const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'px', 'a4');
+            const pdf = new jsPDF('p', 'px', 'a4'); // A4 size in pixels
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
+            
             const canvasWidth = canvas.width;
             const canvasHeight = canvas.height;
-            const ratio = canvasWidth / canvasHeight;
-            const widthInPdf = pdfWidth;
-            const heightInPdf = widthInPdf / ratio;
             
-            // Adjust padding/margin inside the PDF
-            const padding = 20; 
-            const contentWidth = pdfWidth - (padding * 2);
-            const contentHeight = (contentWidth) / ratio;
+            const ratio = canvasWidth / canvasHeight;
+            
+            const padding = 20;
+            let finalWidth = pdfWidth - (padding * 2);
+            let finalHeight = finalWidth / ratio;
 
-            let finalHeight = contentHeight;
             if (finalHeight > pdfHeight - (padding * 2)) {
-                 finalHeight = pdfHeight - (padding * 2);
+                finalHeight = pdfHeight - (padding * 2);
+                finalWidth = finalHeight * ratio;
             }
+            
+            const x = (pdfWidth - finalWidth) / 2;
+            const y = (pdfHeight - finalHeight) / 2;
 
-            pdf.addImage(imgData, 'PNG', padding, padding, contentWidth, finalHeight);
-
+            pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
             pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
             toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
         });
