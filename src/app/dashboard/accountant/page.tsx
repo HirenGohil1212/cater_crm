@@ -29,6 +29,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogClose,
+  DialogTrigger
 } from "@/components/ui/dialog"
 import {
   Accordion,
@@ -36,13 +38,15 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, DollarSign, Users, Loader2 } from "lucide-react";
+import { FileText, DollarSign, Users, Loader2, PlusCircle } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, where, getDocs } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GenerateInvoiceOutput } from "@/ai/flows/generate-invoice-flow";
 import { generateInvoice } from "@/ai/flows/generate-invoice-flow";
@@ -50,6 +54,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { InvoiceList } from "@/components/invoice-list";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 type Order = {
   id: string;
@@ -76,10 +86,17 @@ type Client = {
 type LedgerEntry = {
     date: string;
     description: string;
-    invoiceNumber: string;
+    reference: string;
     debit: number;
     credit: number;
+    type: 'invoice' | 'payment';
 };
+
+const paymentSchema = z.object({
+    amount: z.coerce.number().min(0.01, "Amount must be greater than 0."),
+    date: z.date(),
+    description: z.string().min(3, "A description is required."),
+});
 
 
 async function getUserName(userId: string): Promise<string> {
@@ -97,6 +114,18 @@ function ClientLedgers() {
     const [loading, setLoading] = useState(true);
     const [ledgerData, setLedgerData] = useState<Record<string, LedgerEntry[]>>({});
     const [loadingLedger, setLoadingLedger] = useState<Record<string, boolean>>({});
+    const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+    const { toast } = useToast();
+
+    const form = useForm<z.infer<typeof paymentSchema>>({
+        resolver: zodResolver(paymentSchema),
+        defaultValues: {
+            amount: 0,
+            date: new Date(),
+            description: ""
+        }
+    });
 
     useEffect(() => {
         const q = query(collection(db, "users"), where("role", "==", "consumer"));
@@ -106,7 +135,6 @@ function ClientLedgers() {
                 name: doc.data().name,
                 companyName: doc.data().companyName
             } as Client));
-            // Sort clients alphabetically by company name on the client side
             clientList.sort((a, b) => a.companyName.localeCompare(b.companyName));
             setClients(clientList);
             setLoading(false);
@@ -123,23 +151,40 @@ function ClientLedgers() {
         setLoadingLedger(prev => ({ ...prev, [clientId]: true }));
 
         try {
-            // Fetch invoices for the client
-            const invoicesRef = collection(db, "invoices");
-            const invoicesQuery = query(invoicesRef, where("client.id", "==", clientId));
+            let entries: LedgerEntry[] = [];
+
+            // Fetch invoices for the client (Debit)
+            const invoicesQuery = query(collection(db, "invoices"), where("client.id", "==", clientId));
             const invoiceSnap = await getDocs(invoicesQuery);
-            
-            const entries: LedgerEntry[] = invoiceSnap.docs.map(doc => {
+            const invoiceEntries: LedgerEntry[] = invoiceSnap.docs.map(doc => {
                 const data = doc.data() as Invoice;
                 return {
                     date: data.invoiceDate,
                     description: `Invoice for Event on ${data.eventDate}`,
-                    invoiceNumber: data.invoiceNumber,
+                    reference: data.invoiceNumber,
                     debit: data.totalAmount,
                     credit: 0,
+                    type: 'invoice',
                 };
             });
+            entries = [...entries, ...invoiceEntries];
 
-            // You could also fetch payments here and add them as credit entries
+            // Fetch payments for the client (Credit)
+            const paymentsQuery = query(collection(db, "payments"), where("clientId", "==", clientId));
+            const paymentSnap = await getDocs(paymentsQuery);
+            const paymentEntries: LedgerEntry[] = paymentSnap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    date: data.date.split('T')[0],
+                    description: data.description,
+                    reference: `PAY-${doc.id.slice(-6).toUpperCase()}`,
+                    debit: 0,
+                    credit: data.amount,
+                    type: 'payment',
+                };
+            });
+            entries = [...entries, ...paymentEntries];
+
 
             entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
@@ -152,6 +197,40 @@ function ClientLedgers() {
         }
     }, [ledgerData, loadingLedger]);
 
+    const handleOpenPaymentDialog = (client: Client) => {
+        setSelectedClient(client);
+        setIsPaymentDialogOpen(true);
+        form.reset();
+    }
+
+    const onPaymentSubmit = async (values: z.infer<typeof paymentSchema>) => {
+        if (!selectedClient) return;
+
+        try {
+            await addDoc(collection(db, "payments"), {
+                clientId: selectedClient.id,
+                amount: values.amount,
+                date: values.date.toISOString(),
+                description: values.description,
+                createdAt: serverTimestamp(),
+            });
+            toast({ title: "Payment Recorded", description: "The payment has been added to the ledger." });
+            
+            // Invalidate cached ledger data to force a refetch
+            setLedgerData(prev => {
+                const newState = {...prev};
+                delete newState[selectedClient.id];
+                return newState;
+            });
+            fetchLedgerForClient(selectedClient.id);
+
+            setIsPaymentDialogOpen(false);
+        } catch (error) {
+            console.error("Error recording payment:", error);
+            toast({ variant: 'destructive', title: "Error", description: "Could not record payment." });
+        }
+    }
+
     const renderLedgerTable = (clientId: string) => {
         const entries = ledgerData[clientId] || [];
         let balance = 0;
@@ -163,7 +242,7 @@ function ClientLedgers() {
                         <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Description</TableHead>
-                            <TableHead>Invoice #</TableHead>
+                            <TableHead>Reference</TableHead>
                             <TableHead className="text-right">Debit</TableHead>
                             <TableHead className="text-right">Credit</TableHead>
                             <TableHead className="text-right">Balance</TableHead>
@@ -186,11 +265,11 @@ function ClientLedgers() {
                             balance += entry.debit - entry.credit;
                             return (
                                 <TableRow key={index}>
-                                    <TableCell>{entry.date}</TableCell>
+                                    <TableCell>{format(new Date(entry.date), 'PPP')}</TableCell>
                                     <TableCell>{entry.description}</TableCell>
-                                    <TableCell>{entry.invoiceNumber}</TableCell>
-                                    <TableCell className="text-right">₹{entry.debit.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right">₹{entry.credit.toFixed(2)}</TableCell>
+                                    <TableCell>{entry.reference}</TableCell>
+                                    <TableCell className="text-right">{entry.debit > 0 ? `₹${entry.debit.toFixed(2)}` : '-'}</TableCell>
+                                    <TableCell className="text-right">{entry.credit > 0 ? `₹${entry.credit.toFixed(2)}` : '-'}</TableCell>
                                     <TableCell className="text-right font-medium">₹{balance.toFixed(2)}</TableCell>
                                 </TableRow>
                             )
@@ -214,17 +293,24 @@ function ClientLedgers() {
     }
 
     return (
+        <>
         <Card>
             <CardHeader>
                 <CardTitle>Client Ledgers</CardTitle>
-                <CardDescription>View detailed financial ledgers for each client.</CardDescription>
+                <CardDescription>View detailed financial ledgers for each client and record payments.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Accordion type="single" collapsible className="w-full" onValueChange={fetchLedgerForClient}>
                     {clients.map(client => (
                         <AccordionItem value={client.id} key={client.id}>
                             <AccordionTrigger>
-                                {client.companyName}
+                                <div className="flex justify-between items-center w-full pr-4">
+                                     <span>{client.companyName}</span>
+                                     <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleOpenPaymentDialog(client); }}>
+                                        <PlusCircle className="mr-2 h-4 w-4" />
+                                        Record Payment
+                                    </Button>
+                                </div>
                             </AccordionTrigger>
                             <AccordionContent>
                                {renderLedgerTable(client.id)}
@@ -234,6 +320,90 @@ function ClientLedgers() {
                 </Accordion>
             </CardContent>
         </Card>
+
+        <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+            <DialogContent>
+                 <DialogHeader>
+                    <DialogTitle>Record Payment for {selectedClient?.companyName}</DialogTitle>
+                    <DialogDescription>
+                        Enter the payment details below. This will add a credit entry to the client's ledger.
+                    </DialogDescription>
+                 </DialogHeader>
+                 <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onPaymentSubmit)} className="space-y-4">
+                       <FormField
+                         control={form.control}
+                         name="amount"
+                         render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Amount</FormLabel>
+                                <FormControl>
+                                    <Input type="number" placeholder="0.00" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                         )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="date"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                <FormLabel>Payment Date</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                            "w-full pl-3 text-left font-normal",
+                                            !field.value && "text-muted-foreground"
+                                        )}
+                                        >
+                                        {field.value ? (
+                                            format(field.value, "PPP")
+                                        ) : (
+                                            <span>Pick a date</span>
+                                        )}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                        <FormField
+                             control={form.control}
+                             name="description"
+                             render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Description / Reference</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Bank Transfer, UPI Ref #123" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                             )}
+                        />
+                         <DialogFooter>
+                            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                            <Button type="submit">Save Payment</Button>
+                        </DialogFooter>
+                    </form>
+                 </Form>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }
 
@@ -248,7 +418,7 @@ export default function AccountantDashboardPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="invoices">
+        <Tabs defaultValue="ledgers">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="invoices">
               <FileText className="mr-2 h-4 w-4" />
