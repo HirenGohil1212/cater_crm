@@ -101,9 +101,10 @@ function AgreementsTab() {
 
      useEffect(() => {
         const waiterRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler'];
-        const q = query(collection(db, "staff"), where('role', 'in', waiterRoles), orderBy("name"));
+        const q = query(collection(db, "staff"), where('role', 'in', waiterRoles));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const staffList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff));
+            staffList.sort((a, b) => a.name.localeCompare(b.name));
             setStaff(staffList);
             setLoading(false);
         }, (error) => {
@@ -111,7 +112,7 @@ function AgreementsTab() {
             toast({
                 variant: 'destructive',
                 title: 'Error',
-                description: "Could not fetch staff list.",
+                description: "Could not fetch staff list. This may be due to a missing database index.",
             });
             setLoading(false);
         });
@@ -542,3 +543,4 @@ export default function HRDashboardPage() {
     
 
     
+
