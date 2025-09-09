@@ -303,15 +303,15 @@ function ClientLedgers() {
                 <Accordion type="single" collapsible className="w-full" onValueChange={fetchLedgerForClient}>
                     {clients.map(client => (
                         <AccordionItem value={client.id} key={client.id}>
-                            <AccordionTrigger>
-                                <div className="flex justify-between items-center w-full pr-4">
-                                     <span>{client.companyName}</span>
-                                     <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleOpenPaymentDialog(client); }}>
-                                        <PlusCircle className="mr-2 h-4 w-4" />
-                                        Record Payment
-                                    </Button>
-                                </div>
-                            </AccordionTrigger>
+                            <div className="flex items-center w-full pr-4 py-4">
+                                <AccordionTrigger className="flex-1 py-0">
+                                    <span>{client.companyName}</span>
+                                </AccordionTrigger>
+                                <Button size="sm" variant="outline" className="ml-4" onClick={() => handleOpenPaymentDialog(client)}>
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Record Payment
+                                </Button>
+                            </div>
                             <AccordionContent>
                                {renderLedgerTable(client.id)}
                             </AccordionContent>
