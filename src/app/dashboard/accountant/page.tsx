@@ -99,13 +99,15 @@ function ClientLedgers() {
     const [loadingLedger, setLoadingLedger] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
-        const q = query(collection(db, "users"), where("role", "==", "consumer"), orderBy("companyName"));
+        const q = query(collection(db, "users"), where("role", "==", "consumer"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const clientList = snapshot.docs.map(doc => ({
                 id: doc.id,
                 name: doc.data().name,
                 companyName: doc.data().companyName
             } as Client));
+            // Sort clients alphabetically by company name on the client side
+            clientList.sort((a, b) => a.companyName.localeCompare(b.companyName));
             setClients(clientList);
             setLoading(false);
         }, (error) => {
