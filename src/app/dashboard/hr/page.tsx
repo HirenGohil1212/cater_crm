@@ -186,10 +186,9 @@ function AgreementsTab() {
             });
 
             const imgData = canvas.toDataURL('image/png');
-            
             const pdf = new jsPDF({
                 orientation: 'portrait',
-                unit: 'pt',
+                unit: 'px',
                 format: 'a4',
             });
 
@@ -198,16 +197,22 @@ function AgreementsTab() {
             const canvasWidth = canvas.width;
             const canvasHeight = canvas.height;
             const canvasAspectRatio = canvasWidth / canvasHeight;
+            const pdfAspectRatio = pdfWidth / pdfHeight;
 
-            let finalImgWidth = pdfWidth;
-            let finalImgHeight = finalImgWidth / canvasAspectRatio;
+            let finalImgWidth, finalImgHeight;
 
-            if (finalImgHeight > pdfHeight) {
+            if (canvasAspectRatio > pdfAspectRatio) {
+                finalImgWidth = pdfWidth;
+                finalImgHeight = pdfWidth / canvasAspectRatio;
+            } else {
                 finalImgHeight = pdfHeight;
-                finalImgWidth = finalImgHeight * canvasAspectRatio;
+                finalImgWidth = pdfHeight * canvasAspectRatio;
             }
+            
+            const x = (pdfWidth - finalImgWidth) / 2;
+            const y = (pdfHeight - finalImgHeight) / 2;
 
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.addImage(imgData, 'PNG', x, y, finalImgWidth, finalImgHeight);
             pdf.save(`Agreement-${selectedStaff.name}.pdf`);
             toast({ title: 'PDF Downloaded', description: 'The agreement has been saved.' });
         } catch (error) {
@@ -469,11 +474,11 @@ function AgreementsTab() {
     const AgreementPreview = ({ staff }: { staff: Staff }) => {
         const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
         const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
-        const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
+        const compensationType = staff.staffType === 'salaried' ? `a monthly salary of ₹${compensationAmount}` : `a per event charge of ₹${compensationAmount}`;
         
         const terms = [
             { title: "Position", text: `The Staff Member is employed in the position of ${staff.role}.` },
-            { title: "Compensation", text: `The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.`},
+            { title: "Compensation", text: `The Company shall pay the Staff Member ${compensationType}.`},
             { title: "Duties", text: "The Staff Member is expected to perform all duties related to their role as required by the Company for various events." },
             { title: "Confidentiality", text: "The Staff Member agrees to keep all Company information confidential." },
             { title: "Governing Law", text: "This Agreement shall be governed by the laws of India." },
@@ -508,7 +513,7 @@ function AgreementsTab() {
                             <div><span className="font-semibold">Address:</span> {staff.address}</div>
                             <div><span className="font-semibold">Role:</span> {staff.role}</div>
                             <div><span className="font-semibold">ID Number:</span> {staff.idNumber}</div>
-                             <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
+                            <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
                             <div><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</div>
                         </div>
                     </section>
@@ -579,19 +584,19 @@ function AgreementsTab() {
             </Card>
 
             <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
-                <DialogContent className="sm:max-w-3xl p-0">
+                <DialogContent className="sm:max-w-3xl p-0 h-[90vh] flex flex-col">
+                    <DialogHeader className="p-6 pb-0">
+                       <DialogTitle>Agreement for {selectedStaff?.name}</DialogTitle>
+                       <DialogDescription>
+                            Preview the employment agreement below. Click Download to save as a PDF.
+                       </DialogDescription>
+                   </DialogHeader>
                     {selectedStaff && (
-                        <>
-                           <DialogHeader className="p-6 pb-4">
-                               <DialogTitle>Agreement for {selectedStaff.name}</DialogTitle>
-                               <DialogDescription>
-                                    Preview the employment agreement below. Click Download to save as a PDF.
-                               </DialogDescription>
-                           </DialogHeader>
-                           <div className='overflow-y-auto max-h-[70vh]'>
+                       <>
+                           <div className='flex-grow overflow-y-auto px-6'>
                                 <AgreementPreview staff={selectedStaff} />
                            </div>
-                            <DialogFooter className="bg-muted/60 p-4 border-t sticky bottom-0">
+                            <DialogFooter className="bg-muted/60 p-4 border-t flex-shrink-0">
                                 <DialogClose asChild>
                                     <Button variant="outline">Cancel</Button>
                                 </DialogClose>
@@ -602,7 +607,7 @@ function AgreementsTab() {
                             </DialogFooter>
                         </>
                     )}
-                     {!selectedStaff && <p>No staff member selected.</p>}
+                     {!selectedStaff && <p className="p-6">No staff member selected.</p>}
                 </DialogContent>
             </Dialog>
         </>
