@@ -160,7 +160,7 @@ export default function AssignStaffPage() {
     }
     
     const unassignedStaff = allStaff.filter(staff => 
-        !order.assignedStaff?.includes(staff.id) && waiterRoles.includes(staff.role)
+        waiterRoles.includes(staff.role) && !order.assignedStaff?.includes(staff.id)
     );
 
     const isDataLoading = loadingStaff || loadingOrders;
@@ -213,7 +213,7 @@ export default function AssignStaffPage() {
                                     ))}
                                     {unassignedStaff.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground">All available staff have been assigned.</TableCell>
+                                            <TableCell colSpan={4} className="text-center text-muted-foreground h-24">All available staff have been assigned.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
@@ -250,7 +250,7 @@ export default function AssignStaffPage() {
                                 ))}
                                  {assignedStaffDetails.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center text-muted-foreground">No staff assigned yet.</TableCell>
+                                        <TableCell colSpan={3} className="text-center text-muted-foreground h-24">No staff assigned yet.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
