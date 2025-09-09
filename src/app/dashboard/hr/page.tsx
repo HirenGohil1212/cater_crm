@@ -39,13 +39,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, setDoc, doc, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, setDoc, doc, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { signInWithPhoneNumber, RecaptchaVerifier, linkWithCredential, EmailAuthProvider, signOut } from "firebase/auth";
-import { FileText, Download, Loader2, BookUser, ClipboardCheck, PlusCircle } from "lucide-react";
+import { FileText, Download, Loader2, BookUser, ClipboardCheck, PlusCircle, UtensilsCrossed } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
 import { Textarea } from '@/components/ui/textarea';
 import { OtpInput } from '@/components/otp-input';
+import { Separator } from '@/components/ui/separator';
 
 
 type ConfirmationResult = any;
@@ -102,7 +103,6 @@ function AgreementsTab() {
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
     const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
     const [isAddStaffDialogOpen, setIsAddStaffDialogOpen] = useState(false);
-    const [agreementText, setAgreementText] = useState('');
     const agreementContentRef = useRef<HTMLDivElement>(null);
     
     // Add Staff Form State
@@ -152,73 +152,11 @@ function AgreementsTab() {
      useEffect(() => {
         if (!isAgreementDialogOpen) {
             setSelectedStaff(null);
-            setAgreementText('');
         }
     }, [isAgreementDialogOpen]);
 
-
-    const generateAgreementTemplate = (staff: Staff) => {
-        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-        const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
-        const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
-
-        return `
-        EMPLOYMENT AGREEMENT
-        
-Date: ${today}
-
-PARTIES:
-  1. Event Staffing Pro ("the Company")
-  2. ${staff.name} ("the Staff Member")
-
-STAFF DETAILS:
-  - Name:             ${staff.name}
-  - Address:          ${staff.address}
-  - Role:             ${staff.role}
-  - ID Number:        ${staff.idNumber}
-  - Bank Account:     ${staff.bankAccountNumber || 'N/A'}
-  - IFSC Code:        ${staff.bankIfscCode || 'N/A'}
-
-TERMS & CONDITIONS:
-
-1. POSITION
-   The Staff Member is employed in the position of ${staff.role}.
-
-2. COMPENSATION
-   The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.
-
-3. DUTIES AND RESPONSIBILITIES
-   The Staff Member is expected to perform all duties related to the role of ${staff.role} as required by the Company for various events.
-
-4. TERM OF EMPLOYMENT
-   This is an at-will employment relationship.
-
-5. CONFIDENTIALITY
-   The Staff Member agrees to keep all Company information confidential.
-
-6. TERMINATION
-   The Company may terminate this agreement at any time for any reason.
-
-7. GOVERNING LAW
-   This Agreement shall be governed by the laws of India.
-
----
-Signed,
-
-
-_________________________
-Event Staffing Pro
-
-
-_________________________
-${staff.name}
-        `.trim();
-    }
-
     const handleGenerateClick = (member: Staff) => {
         setSelectedStaff(member);
-        const agreement = generateAgreementTemplate(member);
-        setAgreementText(agreement);
         setIsAgreementDialogOpen(true);
     }
     
@@ -232,28 +170,33 @@ ${staff.name}
     };
 
     const handleDownloadPdf = () => {
-        const pdf = new jsPDF('p', 'pt', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const margin = 40;
-        
-        pdf.setFont('Helvetica');
-        pdf.setFontSize(10);
+        const content = agreementContentRef.current;
+        if (!content) {
+            toast({ variant: 'destructive', title: "Error", description: "Could not find agreement content to download." });
+            return;
+        }
 
-        const textLines = pdf.splitTextToSize(agreementText, pdfWidth - margin * 2);
-        
-        let y = margin;
-        textLines.forEach((line: string) => {
-            if (y > pdfHeight - margin) {
-                pdf.addPage();
-                y = margin;
+        html2canvas(content, { scale: 2 }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'px', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = canvasWidth / canvasHeight;
+            const widthInPdf = pdfWidth;
+            const heightInPdf = widthInPdf / ratio;
+            
+            if (heightInPdf > pdfHeight) {
+                // Not handling multi-page for now, just fit to page
+                 pdf.addImage(imgData, 'PNG', 0, 0, widthInPdf, pdfHeight);
+            } else {
+                 pdf.addImage(imgData, 'PNG', 0, 0, widthInPdf, heightInPdf);
             }
-            pdf.text(line, margin, y);
-            y += 12; // Line height
-        });
 
-        pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
-        toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
+            pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
+            toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
+        });
     };
     
     async function onDetailsSubmit(values: z.infer<typeof staffSchema>) {
@@ -508,6 +451,73 @@ ${staff.name}
     };
 
 
+    const AgreementPreview = ({ staff }: { staff: Staff }) => {
+        const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
+        const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
+        
+        return (
+            <div ref={agreementContentRef} className="bg-white p-8 rounded-lg shadow-lg text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
+                <header className="flex justify-between items-center pb-4 border-b-2 border-primary">
+                    <div>
+                        <h1 className="text-3xl font-bold text-primary">Employment Agreement</h1>
+                        <p className="text-sm text-muted-foreground">Date: {today}</p>
+                    </div>
+                     <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10">
+                        <UtensilsCrossed className="h-8 w-8 text-primary" />
+                    </div>
+                </header>
+
+                <section className="mt-8">
+                    <h2 className="text-xl font-semibold text-primary mb-2">Parties</h2>
+                    <div className="pl-4 text-sm space-y-1">
+                        <p><span className="font-semibold">Company:</span> Event Staffing Pro</p>
+                        <p><span className="font-semibold">Staff Member:</span> {staff.name}</p>
+                    </div>
+                </section>
+                
+                <Separator className="my-6" />
+
+                <section>
+                    <h2 className="text-xl font-semibold text-primary mb-2">Staff Details</h2>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
+                        <p><span className="font-semibold">Address:</span> {staff.address}</p>
+                        <p><span className="font-semibold">Role:</span> {staff.role}</p>
+                        <p><span className="font-semibold">ID Number:</span> {staff.idNumber}</p>
+                        <p><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</p>
+                        <p><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</p>
+                    </div>
+                </section>
+
+                <Separator className="my-6" />
+
+                <section className="text-sm space-y-4">
+                    <h2 className="text-xl font-semibold text-primary mb-2">Terms & Conditions</h2>
+                    <div className="space-y-3 pl-4">
+                        <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
+                        <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of ₹{compensationAmount}.</p>
+                        <p><strong>3. Duties:</strong> The Staff Member is expected to perform all duties related to their role as required by the Company for various events.</p>
+                        <p><strong>4. Confidentiality:</strong> The Staff Member agrees to keep all Company information confidential.</p>
+                        <p><strong>5. Governing Law:</strong> This Agreement shall be governed by the laws of India.</p>
+                    </div>
+                </section>
+
+                <footer className="mt-16 pt-8 border-t-2 border-dashed">
+                    <div className="grid grid-cols-2 gap-16 text-sm">
+                        <div>
+                            <div className="w-full h-12 border-b border-gray-400"></div>
+                            <p className="mt-2 font-semibold">Event Staffing Pro</p>
+                        </div>
+                        <div>
+                            <div className="w-full h-12 border-b border-gray-400"></div>
+                            <p className="mt-2 font-semibold">{staff.name}</p>
+                        </div>
+                    </div>
+                </footer>
+            </div>
+        )
+    };
+
     return (
         <>
             <Card>
@@ -544,24 +554,19 @@ ${staff.name}
             </Card>
 
             <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
-            <DialogContent className="sm:max-w-3xl">
+            <DialogContent className="sm:max-w-3xl bg-gray-100">
                 {selectedStaff && (
                     <>
                         <DialogHeader>
                             <DialogTitle>Staff Agreement: {selectedStaff.name}</DialogTitle>
                             <DialogDescription>
-                                Preview and edit the digital agreement below. It can be downloaded as a PDF.
+                                Preview the digital agreement below. It can be downloaded as a PDF.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="py-4">
-                             <Textarea
-                                value={agreementText}
-                                onChange={(e) => setAgreementText(e.target.value)}
-                                className="h-80 w-full font-mono text-xs"
-                                placeholder="Agreement text..."
-                             />
+                            <AgreementPreview staff={selectedStaff} />
                         </div>
-                        <DialogFooter>
+                        <DialogFooter className="bg-gray-100 pt-4">
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
@@ -583,8 +588,15 @@ function InquiryTab() {
      const [inquiries, setInquiries] = useState<Inquiry[]>([]);
      const [loading, setLoading] = useState(true);
      const { toast } = useToast();
+     const [isSubmitting, setIsSubmitting] = useState(false);
+
 
      const form = useForm<z.infer<typeof inquirySchema>>();
+
+     const inquiryForm = useForm<z.infer<typeof staffSchema>>({
+         resolver: zodResolver(staffSchema),
+         defaultValues: { name: "", phone: "" },
+     });
 
      useEffect(() => {
         const q = query(collection(db, "inquiries"), orderBy("createdAt", "desc"));
@@ -598,6 +610,30 @@ function InquiryTab() {
         });
         return () => unsubscribe();
      }, []);
+
+    async function onSubmit(values: z.infer<typeof staffSchema>) {
+       setIsSubmitting(true);
+        try {
+             await addDoc(collection(db, "inquiries"), {
+                name: values.name,
+                phone: `+91${values.phone}`,
+                status: "New",
+                createdAt: serverTimestamp(),
+            });
+            toast({ title: "Inquiry Submitted", description: "Thank you for your interest! Our HR team will contact you shortly." });
+            inquiryForm.reset();
+        } catch(error: any) {
+            console.error("Error submitting inquiry:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Submission Failed',
+                description: error.message || "Could not submit your inquiry. Please try again later.",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
 
     const handleStatusChange = async (inquiryId: string, status: string) => {
         const inquiryRef = doc(db, "inquiries", inquiryId);
@@ -629,7 +665,7 @@ function InquiryTab() {
         <Card>
             <CardHeader>
                 <CardTitle>Inquiry & Lead Management</CardTitle>
-                <CardDescription>Manage new staff member leads and inquiries.</CardDescription>
+                <CardDescription>Manage new staff member leads and inquiries from the Staff Signup page.</CardDescription>
             </CardHeader>
             <CardContent>
                  <Table>
@@ -639,13 +675,12 @@ function InquiryTab() {
                             <TableHead>Phone</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {inquiries.length === 0 && (
                              <TableRow>
-                                <TableCell colSpan={5} className="text-center h-24">
+                                <TableCell colSpan={4} className="text-center h-24">
                                     No new inquiries found.
                                 </TableCell>
                             </TableRow>
@@ -671,9 +706,6 @@ function InquiryTab() {
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
-                                <TableCell className="text-right">
-                                    {/* Future actions can go here */}
-                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -684,16 +716,6 @@ function InquiryTab() {
 }
 
 export default function HRDashboardPage() {
-    const [inquiries, setInquiries] = useState<Inquiry[]>([]);
-
-    useEffect(() => {
-        const q = query(collection(db, "users"), where('role', '==', 'inquiry'));
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
-            const inquiriesDocs = await getDocs(q);
-            setInquiries(inquiriesDocs.docs.map(d => ({id: d.id, ...d.data()})) as Inquiry[]);
-        });
-        return () => unsubscribe();
-    }, []);
 
     return (
         <Tabs defaultValue="agreements" className="w-full">
@@ -722,4 +744,11 @@ export default function HRDashboardPage() {
             </TabsContent>
         </Tabs>
     );
+}
+
+declare global {
+    interface Window {
+        recaptchaVerifier: any;
+        confirmationResult: any;
+    }
 }
