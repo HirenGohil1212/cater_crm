@@ -44,6 +44,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { Staff } from '@/app/dashboard/admin/staff/page';
 import { Textarea } from '@/components/ui/textarea';
 import { OtpInput } from '@/components/otp-input';
+import { generateAgreement } from '@/ai/flows/generate-agreement-flow';
+
 
 type ConfirmationResult = any;
 
@@ -85,6 +87,8 @@ function AgreementsTab() {
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
     const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
     const [isAddStaffDialogOpen, setIsAddStaffDialogOpen] = useState(false);
+    const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
+    const [agreementText, setAgreementText] = useState('');
     
     // Add Staff Form State
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -111,7 +115,7 @@ function AgreementsTab() {
             console.error("Error fetching staff:", error);
             toast({
                 variant: 'destructive',
-                title: 'Error',
+                title: 'Error fetching staff',
                 description: "Could not fetch staff list. This may be due to a missing database index.",
             });
             setLoading(false);
@@ -129,10 +133,46 @@ function AgreementsTab() {
             setConfirmationResult(null);
         }
     }, [isAddStaffDialogOpen, form]);
+    
+     useEffect(() => {
+        if (!isAgreementDialogOpen) {
+            setSelectedStaff(null);
+            setAgreementText('');
+        }
+    }, [isAgreementDialogOpen]);
 
-    const handleGenerateClick = (member: Staff) => {
+
+    const handleGenerateClick = async (member: Staff) => {
         setSelectedStaff(member);
         setIsAgreementDialogOpen(true);
+        setIsGeneratingAgreement(true);
+        try {
+            const compensationAmount = member.staffType === 'salaried' ? member.monthlySalary : member.perEventCharge;
+            const compensationType = member.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
+
+            const result = await generateAgreement({
+                staffName: member.name,
+                staffAddress: member.address,
+                staffRole: member.role,
+                staffType: member.staffType,
+                idNumber: member.idNumber,
+                bankAccountNumber: member.bankAccountNumber,
+                bankIfscCode: member.bankIfscCode,
+                compensationAmount: compensationAmount,
+                compensationType: compensationType,
+            });
+            setAgreementText(result.agreementText);
+        } catch (error) {
+            console.error("Error generating agreement:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Agreement Generation Failed',
+                description: 'Could not generate the agreement using AI.',
+            });
+            setAgreementText("Failed to generate agreement. Please try again.");
+        } finally {
+            setIsGeneratingAgreement(false);
+        }
     }
     
      const setupRecaptcha = () => {
@@ -438,65 +478,24 @@ function AgreementsTab() {
                         <DialogHeader>
                             <DialogTitle>Staff Agreement: {selectedStaff.name}</DialogTitle>
                             <DialogDescription>
-                                This is a preview of the digital agreement. It can be downloaded as a PDF.
+                                This is a preview of the AI-generated digital agreement. It can be downloaded as a PDF.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4 text-sm border rounded-md p-6 max-h-[50vh] overflow-y-auto bg-muted/30">
-                            <h3 className="text-lg font-bold text-center mb-4">Employment Agreement</h3>
-                            <p>This agreement is made on {new Date().toLocaleDateString()} between <span className="font-semibold">Event Staffing Pro</span> ("the Company") and <span className="font-semibold">{selectedStaff.name}</span> ("the Staff Member").</p>
-                            
-                            <div className="space-y-2">
-                                <h4 className="font-semibold text-base">1. Personal Information</h4>
-                                <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
-                                    <li><strong>Full Name:</strong> <span className="text-foreground">{selectedStaff.name}</span></li>
-                                    <li><strong>Address:</strong> <span className="text-foreground">{selectedStaff.address || 'N/A'}</span></li>
-                                    <li><strong>ID Number (Aadhar/PAN):</strong> <span className="text-foreground">{selectedStaff.idNumber || 'N/A'}</span></li>
-                                    <li><strong>Staff Type:</strong> <span className="text-foreground">{selectedStaff.staffType || 'N/A'}</span></li>
-                                </ul>
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <h4 className="font-semibold text-base">2. Position</h4>
-                                <p>The Staff Member is employed in the position of <strong className="text-foreground">{selectedStaff.role}</strong>.</p>
-                            </div>
-                             <div className="space-y-2">
-                                <h4 className="font-semibold text-base">3. Compensation</h4>
-                                 <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
-                                     {selectedStaff.staffType === 'salaried' ? (
-                                        <li><strong>Monthly Salary:</strong> <span className="text-foreground">₹{selectedStaff.monthlySalary?.toLocaleString() || 'N/A'}</span></li>
-                                     ) : (
-                                        <li><strong>Per Event Charge:</strong> <span className="text-foreground">₹{selectedStaff.perEventCharge?.toLocaleString() || 'N/A'}</span></li>
-                                     )}
-                                </ul>
-                            </div>
-                             <div className="space-y-2">
-                                <h4 className="font-semibold text-base">4. Banking Information</h4>
-                                <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
-                                    <li><strong>Bank Account Number:</strong> <span className="text-foreground">{selectedStaff.bankAccountNumber || 'N/A'}</span></li>
-                                    <li><strong>IFSC Code:</strong> <span className="text-foreground">{selectedStaff.bankIfscCode || 'N/A'}</span></li>
-                                </ul>
-                            </div>
-                            
-                            <p>... Additional clauses for Duties, etc. would go here ...</p>
-                            
-                            <p className="pt-4">This document is legally binding upon signature. Please review carefully.</p>
-                            
-                            <div className="grid grid-cols-2 gap-8 pt-8 text-center text-muted-foreground">
-                                <div>
-                                  <p className="border-b-2 border-dotted pb-2 mb-2">Signature</p>
-                                  <p>{selectedStaff.name}</p>
-                                </div>
-                                 <div>
-                                  <p className="border-b-2 border-dotted pb-2 mb-2">Signature</p>
-                                  <p>Event Staffing Pro (HR Department)</p>
-                                </div>
-                            </div>
+                        <div className="space-y-4 text-sm border rounded-md p-6 max-h-[60vh] overflow-y-auto bg-muted/30 whitespace-pre-wrap font-mono">
+                           {isGeneratingAgreement ? (
+                               <div className="flex items-center justify-center h-48">
+                                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                   <p className="ml-4 font-sans">Generating agreement...</p>
+                               </div>
+                           ) : (
+                               <p>{agreementText}</p>
+                           )}
                         </div>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
-                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Coming Soon!", description: "PDF generation will be implemented soon."})}>
+                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Coming Soon!", description: "PDF generation will be implemented soon."})} disabled={isGeneratingAgreement}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Download as PDF
                             </Button>
@@ -539,8 +538,3 @@ export default function HRDashboardPage() {
         </Tabs>
     );
 }
-
-    
-
-    
-
