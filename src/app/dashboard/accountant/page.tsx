@@ -118,7 +118,7 @@ function ClientLedgers() {
     }, []);
 
     const fetchLedgerForClient = useCallback(async (clientId: string) => {
-        if (ledgerData[clientId] || loadingLedger[clientId]) return;
+        if (!clientId || ledgerData[clientId] || loadingLedger[clientId]) return;
 
         setLoadingLedger(prev => ({ ...prev, [clientId]: true }));
 
@@ -220,10 +220,10 @@ function ClientLedgers() {
                 <CardDescription>View detailed financial ledgers for each client.</CardDescription>
             </CardHeader>
             <CardContent>
-                <Accordion type="single" collapsible className="w-full">
+                <Accordion type="single" collapsible className="w-full" onValueChange={fetchLedgerForClient}>
                     {clients.map(client => (
                         <AccordionItem value={client.id} key={client.id}>
-                            <AccordionTrigger onOpen={() => fetchLedgerForClient(client.id)}>
+                            <AccordionTrigger>
                                 {client.companyName}
                             </AccordionTrigger>
                             <AccordionContent>
