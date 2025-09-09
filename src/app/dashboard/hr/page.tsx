@@ -485,7 +485,7 @@ function AgreementsTab() {
         ];
 
         return (
-             <div className='w-[595px] h-[842px] bg-white text-gray-900 font-sans shadow-lg mx-auto'>
+             <div className='w-[595px] bg-white text-gray-900 font-sans shadow-lg mx-auto aspect-[1/1.414]'>
                 <div ref={agreementContentRef} className="p-10 flex flex-col h-full">
                     <header className="flex justify-between items-center pb-4 border-b-2 border-gray-800">
                         <div>
@@ -587,7 +587,13 @@ function AgreementsTab() {
             <DialogContent className="max-w-fit bg-gray-100 p-0 overflow-y-auto">
                 {selectedStaff && (
                     <>
-                       <div className='p-8'>
+                       <DialogHeader className="p-6 pb-0">
+                           <DialogTitle>Agreement for {selectedStaff.name}</DialogTitle>
+                           <DialogDescription>
+                                Preview the employment agreement below. Click Download to save as a PDF.
+                           </DialogDescription>
+                       </DialogHeader>
+                       <div className='p-8 pt-4'>
                            <AgreementPreview staff={selectedStaff} />
                        </div>
                         <DialogFooter className="bg-gray-200/80 p-4 border-t sticky bottom-0">
