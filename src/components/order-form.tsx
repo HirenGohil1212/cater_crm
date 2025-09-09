@@ -22,13 +22,11 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Utensils, Lightbulb } from "lucide-react";
+import { CalendarIcon, Utensils } from "lucide-react";
 import { Calendar } from "./ui/calendar";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useCallback } from "react";
-import { suggestWaiters } from "@/ai/flows/suggest-waiters-flow";
-import debounce from 'lodash.debounce';
+import { useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
@@ -45,8 +43,6 @@ const orderFormSchema = z.object({
 
 export function OrderForm() {
   const { toast } = useToast();
-  const [waiterSuggestion, setWaiterSuggestion] = useState<{ count: number, reasoning: string } | null>(null);
-  const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof orderFormSchema>>({
@@ -56,29 +52,6 @@ export function OrderForm() {
       attendees: 0,
     },
   });
-
-  const debouncedSuggestWaiters = useCallback(
-    debounce(async (attendees: number) => {
-      if (attendees > 0) {
-        setIsSuggesting(true);
-        try {
-          const suggestion = await suggestWaiters({ attendees });
-          setWaiterSuggestion({
-            count: suggestion.waiterCount,
-            reasoning: suggestion.reasoning
-          });
-        } catch (error) {
-          console.error("Error fetching waiter suggestion:", error);
-          setWaiterSuggestion(null);
-        } finally {
-          setIsSuggesting(false);
-        }
-      } else {
-        setWaiterSuggestion(null);
-      }
-    }, 500),
-    []
-  );
 
   async function onSubmit(values: z.infer<typeof orderFormSchema>) {
     const user = auth.currentUser;
@@ -99,7 +72,6 @@ export function OrderForm() {
             userId: user.uid,
             status: "Pending",
             createdAt: serverTimestamp(),
-            waiterSuggestion: waiterSuggestion?.count || 0,
         });
 
         toast({
@@ -107,7 +79,6 @@ export function OrderForm() {
             description: "Your order has been placed. We will be in touch shortly.",
         });
         form.reset({ attendees: 0, time: '19:00' });
-        setWaiterSuggestion(null);
     } catch (error) {
         console.error("Error placing order:", error);
         toast({
@@ -189,32 +160,9 @@ export function OrderForm() {
                   min="1"
                   placeholder="e.g., 50"
                   {...field}
-                  onChange={(e) => {
-                    field.onChange(e);
-                    const numAttendees = parseInt(e.target.value, 10);
-                    if (!isNaN(numAttendees)) {
-                        debouncedSuggestWaiters(numAttendees);
-                    } else {
-                        setWaiterSuggestion(null);
-                    }
-                  }}
                 />
               </FormControl>
               <FormMessage />
-               {isSuggesting && (
-                  <FormDescription className="flex items-center gap-2 pt-2">
-                    <Lightbulb className="h-4 w-4 animate-pulse" />
-                    <span>Getting staffing suggestions...</span>
-                  </FormDescription>
-              )}
-              {waiterSuggestion && !isSuggesting && (
-                  <FormDescription className="flex items-center gap-2 pt-2 text-accent-foreground/80 bg-accent/10 p-2 rounded-md border border-accent/20">
-                    <Lightbulb className="h-4 w-4" />
-                    <span>
-                        For {form.getValues("attendees")} guests, we suggest ~<b>{waiterSuggestion.count} waiters</b>. {waiterSuggestion.reasoning}
-                    </span>
-                  </FormDescription>
-              )}
             </FormItem>
           )}
         />
