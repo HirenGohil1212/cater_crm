@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -485,8 +484,8 @@ function AgreementsTab() {
         ];
 
         return (
-             <div ref={agreementContentRef} className="bg-white text-gray-900 font-sans max-h-[70vh] overflow-y-auto p-8">
-                <div className="p-2">
+             <div ref={agreementContentRef} className="bg-white text-gray-900 font-sans max-h-[70vh] overflow-y-auto">
+                <div className="p-8">
                     <header className="flex justify-between items-center pb-4 border-b-2 border-gray-800">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-800">Employment Agreement</h1>
@@ -510,11 +509,11 @@ function AgreementsTab() {
                     <section>
                         <h2 className="text-xl font-semibold text-gray-700 mb-4">STAFF DETAILS</h2>
                         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm pl-4">
-                            <p><span className="font-semibold w-32 inline-block">Address:</span> {staff.address}</p>
-                            <p><span className="font-semibold w-32 inline-block">Role:</span> {staff.role}</p>
-                            <p><span className="font-semibold w-32 inline-block">ID Number:</span> {staff.idNumber}</p>
-                            <p><span className="font-semibold w-32 inline-block">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</p>
-                            <p><span className="font-semibold w-32 inline-block">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</p>
+                            <div><span className="font-semibold">Address:</span> {staff.address}</div>
+                            <div><span className="font-semibold">Role:</span> {staff.role}</div>
+                            <div><span className="font-semibold">ID Number:</span> {staff.idNumber}</div>
+                            <div><span className="font-semibold">Bank Account:</span> {staff.bankAccountNumber || 'N/A'}</div>
+                            <div><span className="font-semibold">IFSC Code:</span> {staff.bankIfscCode || 'N/A'}</div>
                         </div>
                     </section>
 
@@ -782,3 +781,5 @@ declare global {
         confirmationResult: any;
     }
 }
+
+    
