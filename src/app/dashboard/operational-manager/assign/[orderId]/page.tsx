@@ -195,13 +195,10 @@ export default function AssignStaffPage() {
     
     const getAvailabilityBadge = (staffId: string) => {
         const status = availability[staffId];
-        if (status === 'available') {
-            return <Badge variant="default">Available</Badge>;
-        }
         if (status === 'unavailable') {
             return <Badge variant="destructive">Unavailable</Badge>;
         }
-        return <Badge variant="secondary">Not Set</Badge>;
+        return <Badge variant="default">Available</Badge>;
     }
 
 
