@@ -35,6 +35,8 @@ type Order = DocumentData & {
     assignedStaff?: string[];
 }
 
+const waiterRoles = ['waiter-steward', 'supervisor', 'pro', 'senior-pro', 'captain-butler'];
+
 export default function AssignStaffPage() {
     const { toast } = useToast();
     const params = useParams();
@@ -133,7 +135,9 @@ export default function AssignStaffPage() {
         return <p>Order not found.</p>
     }
     
-    const unassignedStaff = allStaff.filter(staff => !order.assignedStaff?.includes(staff.id));
+    const unassignedStaff = allStaff.filter(staff => 
+        !order.assignedStaff?.includes(staff.id) && waiterRoles.includes(staff.role)
+    );
 
     return (
         <div className="space-y-6">
