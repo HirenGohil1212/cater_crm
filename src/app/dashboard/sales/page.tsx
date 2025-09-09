@@ -28,11 +28,12 @@ import { useToast } from "@/hooks/use-toast";
 import { auth, db, DUMMY_EMAIL_DOMAIN } from "@/lib/firebase";
 import { collection, onSnapshot, addDoc, doc, setDoc, query, where, orderBy } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { UserPlus, Loader2, Users, FileText, Building2, CheckSquare } from "lucide-react";
+import { UserPlus, Loader2, Users, FileText, Building2, CheckSquare, ShoppingCart } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { StaffListTable } from '@/components/staff-list-table';
 import { BillingReviewTable } from '@/components/billing-review-table';
+import { ClientOrderForm } from '@/components/client-order-form';
 
 const newClientSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -258,8 +259,9 @@ export default function SalesDashboardPage() {
                     <CardDescription>Manage clients, check staff availability, and create agreements.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <TabsList className="grid w-full grid-cols-4">
+                     <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="clients"><Building2 className="mr-2 h-4 w-4" />Client Management</TabsTrigger>
+                        <TabsTrigger value="booking"><ShoppingCart className="mr-2 h-4 w-4" />Event Booking</TabsTrigger>
                         <TabsTrigger value="review"><CheckSquare className="mr-2 h-4 w-4" />Billing Review</TabsTrigger>
                         <TabsTrigger value="availability"><Users className="mr-2 h-4 w-4" />Staff Availability</TabsTrigger>
                         <TabsTrigger value="agreements"><FileText className="mr-2 h-4 w-4" />Client Agreements</TabsTrigger>
@@ -276,6 +278,17 @@ export default function SalesDashboardPage() {
                         <ClientList key={key} />
                     </div>
                 </div>
+            </TabsContent>
+             <TabsContent value="booking" className="mt-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Book an Event for a Client</CardTitle>
+                        <CardDescription>Select a client and fill in the event details to create a new order.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ClientOrderForm />
+                    </CardContent>
+                </Card>
             </TabsContent>
             <TabsContent value="review" className="mt-4">
                 <Card>
