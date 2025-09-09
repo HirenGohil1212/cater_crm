@@ -7,7 +7,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import {
   Table,
   TableBody,
@@ -104,7 +103,6 @@ function AgreementsTab() {
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
     const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
     const [isAddStaffDialogOpen, setIsAddStaffDialogOpen] = useState(false);
-    const agreementContentRef = useRef<HTMLDivElement>(null);
     
     // Add Staff Form State
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -170,44 +168,106 @@ function AgreementsTab() {
         }
     };
 
-    const handleDownloadPdf = () => {
-        const content = agreementContentRef.current;
-        if (!content) {
-            toast({ variant: 'destructive', title: "Error", description: "Could not find agreement content to download." });
-            return;
-        }
+    const handleDownloadPdf = (staff: Staff) => {
+        const doc = new jsPDF();
+        const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        const compensationAmount = staff.staffType === 'salaried' ? staff.monthlySalary : staff.perEventCharge;
+        const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
+        
+        const primaryColor = "#4A5568"; // Corresponds to text-primary
+        const mutedColor = "#718096";   // Corresponds to text-muted-foreground
 
-        html2canvas(content, { 
-            scale: 2,
-            backgroundColor: '#ffffff',
-            useCORS: true
-        }).then(canvas => {
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'px', 'a4'); // A4 size in pixels
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            
-            const ratio = canvasWidth / canvasHeight;
-            
-            const padding = 20;
-            let finalWidth = pdfWidth - (padding * 2);
-            let finalHeight = finalWidth / ratio;
+        // Header
+        doc.setFontSize(22);
+        doc.setTextColor(primaryColor);
+        doc.setFont("helvetica", "bold");
+        doc.text("Employment Agreement", 20, 20);
 
-            if (finalHeight > pdfHeight - (padding * 2)) {
-                finalHeight = pdfHeight - (padding * 2);
-                finalWidth = finalHeight * ratio;
-            }
-            
-            const x = (pdfWidth - finalWidth) / 2;
-            const y = (pdfHeight - finalHeight) / 2;
+        doc.setFontSize(10);
+        doc.setTextColor(mutedColor);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Date: ${today}`, 20, 28);
+        doc.setDrawColor(primaryColor);
+        doc.line(20, 32, 190, 32);
 
-            pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
-            pdf.save(`Agreement-${selectedStaff?.name}.pdf`);
-            toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
+        let yPos = 45;
+
+        // Parties
+        doc.setFontSize(14);
+        doc.setTextColor(primaryColor);
+        doc.setFont("helvetica", "bold");
+        doc.text("Parties", 20, yPos);
+        yPos += 8;
+
+        doc.setFontSize(11);
+        doc.setTextColor("#000000");
+        doc.setFont("helvetica", "normal");
+        doc.text(`Company: Event Staffing Pro`, 25, yPos);
+        yPos += 6;
+        doc.text(`Staff Member: ${staff.name}`, 25, yPos);
+        yPos += 10;
+        doc.line(20, yPos, 190, yPos); // Separator
+        yPos += 10;
+
+        // Staff Details
+        doc.setFontSize(14);
+        doc.setTextColor(primaryColor);
+        doc.setFont("helvetica", "bold");
+        doc.text("Staff Details", 20, yPos);
+        yPos += 8;
+
+        doc.setFontSize(11);
+        doc.setTextColor("#000000");
+        doc.setFont("helvetica", "normal");
+        doc.text(`Address: ${staff.address}`, 25, yPos);
+        doc.text(`Role: ${staff.role}`, 110, yPos);
+        yPos += 6;
+        doc.text(`ID Number: ${staff.idNumber}`, 25, yPos);
+        doc.text(`Bank Account: ${staff.bankAccountNumber || 'N/A'}`, 110, yPos);
+        yPos += 6;
+        doc.text(`IFSC Code: ${staff.bankIfscCode || 'N/A'}`, 25, yPos);
+        yPos += 10;
+        doc.line(20, yPos, 190, yPos); // Separator
+        yPos += 10;
+
+        // Terms & Conditions
+        doc.setFontSize(14);
+        doc.setTextColor(primaryColor);
+        doc.setFont("helvetica", "bold");
+        doc.text("Terms & Conditions", 20, yPos);
+        yPos += 8;
+
+        doc.setFontSize(11);
+        doc.setTextColor("#000000");
+        doc.setFont("helvetica", "normal");
+        
+        const terms = [
+            `1. Position: The Staff Member is employed in the position of ${staff.role}.`,
+            `2. Compensation: The Company shall pay the Staff Member a ${compensationType} of ₹${compensationAmount}.`,
+            "3. Duties: The Staff Member is expected to perform all duties related to their role as required by the Company for various events.",
+            "4. Confidentiality: The Staff Member agrees to keep all Company information confidential.",
+            "5. Governing Law: This Agreement shall be governed by the laws of India."
+        ];
+        
+        terms.forEach(term => {
+            const splitText = doc.splitTextToSize(term, 165); // 190 (page width) - 25 (margin)
+            doc.text(splitText, 25, yPos);
+            yPos += (splitText.length * 5) + 3;
         });
+
+        // Footer
+        yPos = 250; // Set fixed position for signatures to avoid overlap
+        doc.setDrawColor(mutedColor);
+        doc.setLineDashPattern([2, 2], 0);
+        doc.line(25, yPos, 85, yPos); // Signature line
+        doc.line(125, yPos, 185, yPos); // Signature line
+        
+        doc.setFont("helvetica", "bold");
+        doc.text("Event Staffing Pro", 25, yPos + 5);
+        doc.text(staff.name, 125, yPos + 5);
+        
+        doc.save(`Agreement-${staff.name}.pdf`);
+        toast({ title: "PDF Downloaded", description: "The agreement has been saved."});
     };
     
     async function onDetailsSubmit(values: z.infer<typeof staffSchema>) {
@@ -468,7 +528,7 @@ function AgreementsTab() {
         const compensationType = staff.staffType === 'salaried' ? 'monthly salary' : 'per event charge';
         
         return (
-            <div ref={agreementContentRef} className="bg-white text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
+            <div className="bg-white text-gray-800 font-sans max-h-[70vh] overflow-y-auto">
                 <div className="p-8">
                     <header className="flex justify-between items-center pb-4 border-b-2 border-primary">
                         <div>
@@ -506,7 +566,7 @@ function AgreementsTab() {
                     <section className="text-sm space-y-4">
                         <h2 className="text-xl font-semibold text-primary mb-2">Terms & Conditions</h2>
                         <div className="space-y-3 pl-4">
-                            <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
+                             <p><strong>1. Position:</strong> The Staff Member is employed in the position of {staff.role}.</p>
                             <p><strong>2. Compensation:</strong> The Company shall pay the Staff Member a {compensationType} of ₹{compensationAmount}.</p>
                             <p><strong>3. Duties:</strong> The Staff Member is expected to perform all duties related to their role as required by the Company for various events.</p>
                             <p><strong>4. Confidentiality:</strong> The Staff Member agrees to keep all Company information confidential.</p>
@@ -583,7 +643,7 @@ function AgreementsTab() {
                             <DialogClose asChild>
                                 <Button variant="outline">Cancel</Button>
                             </DialogClose>
-                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleDownloadPdf}>
+                            <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => handleDownloadPdf(selectedStaff)}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Download as PDF
                             </Button>
