@@ -44,11 +44,10 @@ export default function ConsumerBillingPage() {
         };
 
         const ordersRef = collection(db, "orders");
+        // Simplified query to avoid index error
         const q = query(
             ordersRef, 
-            where("userId", "==", user.uid),
-            where("status", "in", ["Completed", "Confirmed"]), // Show bills for completed or confirmed events
-            orderBy("status", "desc") // This may require an index
+            where("userId", "==", user.uid)
         );
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -62,7 +61,17 @@ export default function ConsumerBillingPage() {
                     invoiceStatus: data.invoiceStatus || "Pending",
                 };
             }) as Order[];
-            setOrders(userOrders);
+
+            // Filter and sort on the client side
+            const filteredAndSortedOrders = userOrders
+                .filter(order => order.status === "Completed" || order.status === "Confirmed")
+                .sort((a, b) => {
+                    if (a.status > b.status) return -1;
+                    if (a.status < b.status) return 1;
+                    return 0;
+                });
+            
+            setOrders(filteredAndSortedOrders);
             setLoading(false);
         }, (error) => {
             console.error("Error fetching billing orders: ", error);
