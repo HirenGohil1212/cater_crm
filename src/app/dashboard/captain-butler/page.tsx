@@ -182,7 +182,7 @@ function EventManagementDialog({ order, assignedStaffDetails }: { order: Order, 
                                 <AlertDialogTrigger asChild>
                                     <Button 
                                         size="lg" 
-                                        disabled={order.status !== 'Confirmed' || isUpdating}
+                                        disabled={isUpdating}
                                         className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
                                     >
                                         {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
@@ -395,3 +395,4 @@ export default function CaptainButlerDashboardPage() {
         </Tabs>
     )
 }
+
