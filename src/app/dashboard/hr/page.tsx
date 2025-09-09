@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -179,8 +180,8 @@ function AgreementsTab() {
 
         try {
             const canvas = await html2canvas(content, {
-                scale: 2,
-                backgroundColor: '#ffffff',
+                scale: 2, // Higher scale for better resolution
+                backgroundColor: '#ffffff', // Explicitly set background color
                 useCORS: true,
             });
 
@@ -194,11 +195,14 @@ function AgreementsTab() {
             const canvasHeight = canvas.height;
             const canvasAspectRatio = canvasWidth / canvasHeight;
 
-            let finalImgWidth = pdfWidth - 80; // with 40pt margin on each side
+            // Calculate image dimensions to fit within A4 page with margins
+            const margin = 40;
+            let finalImgWidth = pdfWidth - (margin * 2);
             let finalImgHeight = finalImgWidth / canvasAspectRatio;
 
-            if (finalImgHeight > pdfHeight - 80) {
-                 finalImgHeight = pdfHeight - 80; // with 40pt margin top/bottom
+            // If the image is too tall, fit it to height instead
+            if (finalImgHeight > pdfHeight - (margin * 2)) {
+                 finalImgHeight = pdfHeight - (margin * 2);
                  finalImgWidth = finalImgHeight * canvasAspectRatio;
             }
 
@@ -209,7 +213,7 @@ function AgreementsTab() {
             });
 
             const x = (pdfWidth - finalImgWidth) / 2;
-            const y = 40; // 40pt margin from top
+            const y = margin;
 
             pdf.addImage(imgData, 'PNG', x, y, finalImgWidth, finalImgHeight);
             pdf.save(`Agreement-${selectedStaff.name}.pdf`);
