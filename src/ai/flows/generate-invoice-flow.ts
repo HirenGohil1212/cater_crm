@@ -124,7 +124,7 @@ const generateInvoiceFlow = ai.defineFlow(
     const staffDocs = await Promise.all(staffRolePromises);
     
     // 2. Perform all calculations and formatting in code
-    const roleRates: Record<string, { count: number, rate: number }> = {};
+    const roleRates: Record<string, { count: number, rate: number | null }> = {};
     
     payoutsSnap.docs.forEach((payoutDoc, index) => {
         const payoutData = payoutDoc.data();
@@ -133,7 +133,10 @@ const generateInvoiceFlow = ai.defineFlow(
             const staffData = staffDoc.data();
             const role = staffData.role || 'unknown';
             if (!roleRates[role]) {
-                roleRates[role] = { count: 0, rate: payoutData.amount };
+                roleRates[role] = { count: 0, rate: null };
+            }
+            if (roleRates[role].rate === null && payoutData.amount > 0) {
+                 roleRates[role].rate = payoutData.amount;
             }
             roleRates[role].count += 1;
         }
@@ -141,11 +144,12 @@ const generateInvoiceFlow = ai.defineFlow(
 
     const lineItems: z.infer<typeof LineItemSchema>[] = Object.entries(roleRates).map(([role, data]) => {
         const roleName = capitalize(role.replace('-', ' '));
+        const rate = data.rate ?? 0;
         return {
             description: `${roleName}s`,
             quantity: data.count,
-            rate: data.rate,
-            amount: data.count * data.rate,
+            rate: rate,
+            amount: data.count * rate,
         };
     });
 
