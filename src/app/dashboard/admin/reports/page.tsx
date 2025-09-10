@@ -24,6 +24,7 @@ import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import type { GenerateInvoiceOutput } from "@/ai/flows/generate-invoice-flow";
+import type { Staff } from "@/app/dashboard/admin/staff/page";
 
 
 type Invoice = GenerateInvoiceOutput & {
@@ -33,8 +34,9 @@ type Invoice = GenerateInvoiceOutput & {
 type Payout = {
     id: string;
     orderId: string;
+    staffId: string;
     staffName: string;
-    amount: number;
+    amount: number; // This is the amount BILLED to the client
     status: 'Pending' | 'Paid';
     eventDate?: string;
 };
@@ -62,52 +64,61 @@ export default function AdminReportsPage() {
         // Fetch all invoices to calculate Total In
         const invoicesQuery = query(collection(db, "invoices"));
         const unsubInvoices = onSnapshot(invoicesQuery, (snapshot) => {
-            let total = 0;
+            let totalRevenue = 0;
             const invoices: Invoice[] = [];
             snapshot.forEach(doc => {
                 const data = doc.data() as Invoice;
-                total += data.totalAmount;
+                totalRevenue += data.totalAmount;
                 invoices.push({ id: doc.id, ...data });
             });
             invoices.sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime());
             setRecentInvoices(invoices.slice(0, 10));
-            setStats(prev => ({ ...prev, totalIn: total, profit: total - prev.totalOut }));
+            setStats(prev => ({ ...prev, totalIn: totalRevenue }));
         });
 
         // Fetch all payouts, then filter for 'Paid' status on the client
         const payoutsQuery = query(collectionGroup(db, 'payouts'));
         const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
-            let total = 0;
+            const paidPayoutDocs = snapshot.docs.filter(doc => doc.data().status === 'Paid');
+
+            let totalPayoutCost = 0;
+            let totalBilledForStaff = 0;
             
-            const allPayouts = snapshot.docs
-                .filter(doc => doc.data().status === 'Paid')
-                .map(doc => ({
-                    id: doc.id,
-                    orderId: doc.ref.parent.parent!.id,
-                    ...doc.data()
-                })) as Payout[];
-            
-            const payoutPromises = allPayouts.map(async (p) => {
-                if (!p.eventDate) {
-                    p.eventDate = await getEventDateForPayout(p.orderId);
+            const processedPayouts: Payout[] = [];
+
+            for (const payoutDoc of paidPayoutDocs) {
+                const payoutData = payoutDoc.data();
+                const staffDocRef = doc(db, 'staff', payoutData.staffId);
+                const staffDocSnap = await getDoc(staffDocRef);
+                
+                let actualStaffCost = 0;
+                if (staffDocSnap.exists()) {
+                    const staffData = staffDocSnap.data() as Staff;
+                    actualStaffCost = staffData.perEventCharge || 0;
                 }
-                return p;
-            });
+
+                totalPayoutCost += actualStaffCost;
+                totalBilledForStaff += payoutData.amount;
+                
+                const eventDate = await getEventDateForPayout(payoutDoc.ref.parent.parent!.id);
+
+                processedPayouts.push({
+                    id: payoutDoc.id,
+                    orderId: payoutDoc.ref.parent.parent!.id,
+                    eventDate: eventDate,
+                    ...payoutData,
+                } as Payout);
+            }
             
-            const payoutsWithDates = await Promise.all(payoutPromises);
+            const netProfit = totalBilledForStaff - totalPayoutCost;
 
-            payoutsWithDates.forEach(payout => {
-                total += payout.amount;
-            });
-
-            // Client-side sort by eventDate
-            payoutsWithDates.sort((a,b) => {
+            processedPayouts.sort((a,b) => {
                 if(a.eventDate && b.eventDate) return new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime();
                 return 0;
             });
 
-            setRecentPayouts(payoutsWithDates.slice(0, 10));
-            setStats(prev => ({ ...prev, totalOut: total, profit: prev.totalIn - total }));
+            setRecentPayouts(processedPayouts.slice(0, 10));
+            setStats(prev => ({ ...prev, totalOut: totalPayoutCost, profit: netProfit }));
             if (loading) setLoading(false);
         });
 
@@ -165,7 +176,7 @@ export default function AdminReportsPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-bold">{formatCurrency(stats.totalOut)}</div>
-                                <p className="text-xs text-muted-foreground">All staff payments marked as paid</p>
+                                <p className="text-xs text-muted-foreground">Total actual cost of staff payouts</p>
                             </CardContent>
                         </Card>
                         <Card>
@@ -175,7 +186,7 @@ export default function AdminReportsPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-bold">{formatCurrency(stats.profit)}</div>
-                                <p className="text-xs text-muted-foreground">Total Revenue - Total Payouts</p>
+                                <p className="text-xs text-muted-foreground">Billed Staff Amount - Actual Staff Cost</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -213,7 +224,7 @@ export default function AdminReportsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Recent Payouts</CardTitle>
-                         <CardDescription>The 10 most recently paid staff members.</CardDescription>
+                         <CardDescription>The 10 most recently paid staff members (amount is what was billed to client).</CardDescription>
                     </CardHeader>
                     <CardContent>
                          <Table>
@@ -221,7 +232,7 @@ export default function AdminReportsPage() {
                                 <TableRow>
                                     <TableHead>Staff Member</TableHead>
                                     <TableHead>Event Date</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-right">Billed Amount</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
