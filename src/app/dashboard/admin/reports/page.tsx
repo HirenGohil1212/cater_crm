@@ -74,6 +74,10 @@ export default function AdminReportsPage() {
             invoices.sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime());
             setRecentInvoices(invoices.slice(0, 10));
             setStats(prev => ({ ...prev, totalIn: totalRevenue }));
+            setLoading(false); // Set loading to false once invoices are fetched at least once
+        }, (error) => {
+            console.error("Error fetching invoices:", error);
+            setLoading(false);
         });
 
         // Fetch all payouts, then filter for 'Paid' status on the client
@@ -81,8 +85,8 @@ export default function AdminReportsPage() {
         const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
             const paidPayoutDocs = snapshot.docs.filter(doc => doc.data().status === 'Paid');
 
-            let totalPayoutCost = 0;
-            let totalBilledForStaff = 0;
+            let totalActualCost = 0;
+            let totalBilledAmount = 0;
             
             const processedPayouts: Payout[] = [];
 
@@ -97,8 +101,8 @@ export default function AdminReportsPage() {
                     actualStaffCost = staffData.perEventCharge || 0;
                 }
 
-                totalPayoutCost += actualStaffCost;
-                totalBilledForStaff += payoutData.amount;
+                totalActualCost += actualStaffCost;
+                totalBilledAmount += payoutData.amount;
                 
                 const eventDate = await getEventDateForPayout(payoutDoc.ref.parent.parent!.id);
 
@@ -110,7 +114,7 @@ export default function AdminReportsPage() {
                 } as Payout);
             }
             
-            const netProfit = totalBilledForStaff - totalPayoutCost;
+            const netProfit = totalBilledAmount - totalActualCost;
 
             processedPayouts.sort((a,b) => {
                 if(a.eventDate && b.eventDate) return new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime();
@@ -118,15 +122,18 @@ export default function AdminReportsPage() {
             });
 
             setRecentPayouts(processedPayouts.slice(0, 10));
-            setStats(prev => ({ ...prev, totalOut: totalPayoutCost, profit: netProfit }));
-            if (loading) setLoading(false);
+            setStats(prev => ({ ...prev, totalOut: totalActualCost, profit: netProfit }));
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching payouts:", error);
+            setLoading(false);
         });
 
         return () => {
             unsubInvoices();
             unsubPayouts();
         };
-    }, [loading]);
+    }, []);
 
     const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     
