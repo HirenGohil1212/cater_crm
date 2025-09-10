@@ -49,8 +49,7 @@ export default function AdminAlertsPage() {
     useEffect(() => {
         const q = query(
             collection(db, "orders"), 
-            where("status", "in", ["Confirmed", "Reviewed"]),
-            orderBy("date", "desc")
+            where("status", "in", ["Confirmed", "Reviewed"])
         );
         
         const unsubscribe = onSnapshot(q, async (snapshot) => {
@@ -65,6 +64,8 @@ export default function AdminAlertsPage() {
                 }
             });
             const ordersList = await Promise.all(ordersPromises);
+            // Sort client-side to avoid index requirement
+            ordersList.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setOrders(ordersList as Order[]);
             setLoadingOrders(false);
         });
