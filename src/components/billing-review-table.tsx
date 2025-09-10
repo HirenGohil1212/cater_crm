@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import {
@@ -177,6 +178,7 @@ export function BillingReviewTable() {
                   staffName: payout.staffName,
                   amount: payout.amount,
                   status: 'Pending', // Initial status
+                  eventDate: selectedOrder.date, // Denormalize event date
               });
           });
 

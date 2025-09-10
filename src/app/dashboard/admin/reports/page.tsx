@@ -42,7 +42,7 @@ type Payout = {
     staffName: string;
     amount: number; // This is the amount BILLED to the client
     status: 'Pending' | 'Paid';
-    eventDate?: string;
+    eventDate: string;
 };
 
 type Firm = {
@@ -55,12 +55,6 @@ type Stats = {
     totalOut: number;
     profit: number;
 };
-
-async function getEventDateForPayout(orderId: string): Promise<string | undefined> {
-    if (!orderId) return undefined;
-    const orderDoc = await getDoc(doc(db, 'orders', orderId));
-    return orderDoc.exists() ? orderDoc.data().date : undefined;
-}
 
 
 export default function AdminReportsPage() {
@@ -82,21 +76,17 @@ export default function AdminReportsPage() {
             setLoading(false);
         });
 
-        const payoutsQuery = query(collectionGroup(db, 'payouts'));
-        const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
-            const paidPayoutDocs = snapshot.docs.filter(doc => doc.data().status === 'Paid');
+        const payoutsQuery = query(collectionGroup(db, 'payouts'), orderBy('eventDate', 'desc'));
+        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+            const paidPayouts = snapshot.docs
+                .filter(doc => doc.data().status === 'Paid')
+                .map(doc => ({
+                    id: doc.id,
+                    orderId: doc.ref.parent.parent!.id,
+                    ...doc.data()
+                } as Payout));
             
-            const processedPayouts: Payout[] = [];
-            for (const payoutDoc of paidPayoutDocs) {
-                const payoutData = payoutDoc.data();
-                const eventDate = await getEventDateForPayout(payoutDoc.ref.parent.parent!.id);
-                processedPayouts.push({
-                    id: payoutDoc.id, orderId: payoutDoc.ref.parent.parent!.id, eventDate: eventDate, ...payoutData
-                } as Payout);
-            }
-            
-            processedPayouts.sort((a,b) => (a.eventDate && b.eventDate) ? new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime() : 0);
-            setRecentPayouts(processedPayouts.slice(0, 10));
+            setRecentPayouts(paidPayouts.slice(0, 10));
             
             if(!snapshot.metadata.hasPendingWrites) setLoading(false);
         }, (error) => {
@@ -123,19 +113,28 @@ export default function AdminReportsPage() {
 
           const payoutsQuery = query(collectionGroup(db, 'payouts'));
           const allPayoutsSnapshot = await getDocs(payoutsQuery);
-          const paidPayoutsSnapshot = allPayoutsSnapshot.docs.filter(doc => doc.data().status === 'Paid');
+          const paidPayoutDocs = allPayoutsSnapshot.docs.filter(doc => doc.data().status === 'Paid');
           
           let totalBilledForStaff = 0;
           let totalActualStaffCost = 0;
 
-          for (const payoutDoc of paidPayoutsSnapshot) {
+          const staffCache = new Map<string, Staff>();
+
+          for (const payoutDoc of paidPayoutDocs) {
               const payoutData = payoutDoc.data();
               totalBilledForStaff += payoutData.amount;
               
-              const staffDocRef = doc(db, 'staff', payoutData.staffId);
-              const staffDocSnap = await getDoc(staffDocRef);
-              if (staffDocSnap.exists()) {
-                  const staffData = staffDocSnap.data() as Staff;
+              let staffData = staffCache.get(payoutData.staffId);
+              if (!staffData) {
+                  const staffDocRef = doc(db, 'staff', payoutData.staffId);
+                  const staffDocSnap = await getDoc(staffDocRef);
+                  if (staffDocSnap.exists()) {
+                      staffData = staffDocSnap.data() as Staff;
+                      staffCache.set(payoutData.staffId, staffData);
+                  }
+              }
+
+              if (staffData) {
                   totalActualStaffCost += staffData.perEventCharge || 0;
               }
           }
