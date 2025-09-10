@@ -65,7 +65,7 @@ export function LoginForm() {
         });
         
         // Special handling for waiter roles that share a dashboard
-        const waiterRoles = ['waiter', 'waiter-steward', 'pro', 'senior-pro', 'supervisor', 'captain-butler'];
+        const waiterRoles = ['waiter', 'waiter-steward', 'pro', 'senior-pro'];
         if(waiterRoles.includes(role)){
             router.push(`/dashboard/waiter`);
         } else {

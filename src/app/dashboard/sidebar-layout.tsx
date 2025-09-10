@@ -8,8 +8,8 @@ import {
   Sidebar,
   SidebarInset,
 } from '@/components/ui/sidebar';
-import { DashboardSidebarContent } from './dashboard-sidebar-content';
-import { DashboardHeader } from './dashboard-header';
+import { DashboardSidebarContent } from '@/components/dashboard-sidebar-content';
+import { DashboardHeader } from '@/components/dashboard-header';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -26,6 +26,13 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
           setRole(userDocSnap.data().role || 'consumer');
+        } else {
+            // Fallback to staff collection if not in users
+            const staffDocRef = doc(db, "staff", user.uid);
+            const staffDocSnap = await getDoc(staffDocRef);
+             if (staffDocSnap.exists()) {
+                setRole(staffDocSnap.data().role || 'consumer');
+            }
         }
       } else {
         setRole('consumer'); // Default or guest role

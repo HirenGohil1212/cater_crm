@@ -50,7 +50,10 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/waiter", label: "Dashboard", icon: LayoutDashboard },
   ],
   supervisor: [
-    { href: "/dashboard/supervisor", label: "Staff Location", icon: MapPin },
+    { href: "/dashboard/supervisor", label: "Steward Mgt.", icon: Users },
+  ],
+  'captain-butler': [
+      { href: "/dashboard/captain-butler", label: "Event Mgt.", icon: Shield },
   ],
   sales: [
     { href: "/dashboard/sales", label: "Sales Dashboard", icon: TrendingUp },
@@ -79,7 +82,7 @@ export function DashboardSidebarContent({ role }: DashboardSidebarContentProps) 
   const pathname = usePathname();
   
   // Handle different waiter roles by mapping them to a single 'waiter' key
-  const waiterRoles = ['waiter-steward', 'pro', 'senior-pro', 'captain-butler'];
+  const waiterRoles = ['waiter-steward', 'pro', 'senior-pro'];
   const navRole = waiterRoles.includes(role) ? 'waiter' : role;
 
   const currentNavItems = navItems[navRole as keyof typeof navItems] || [];
