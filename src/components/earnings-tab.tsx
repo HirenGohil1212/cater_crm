@@ -25,6 +25,7 @@ import { collectionGroup, query, where, onSnapshot, doc, getDoc } from "firebase
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { onAuthStateChanged, User } from "firebase/auth";
+import type { Staff } from "@/app/dashboard/admin/staff/page";
 
 
 type Payout = {
@@ -35,6 +36,7 @@ type Payout = {
     status: 'Pending' | 'Paid';
     clientName?: string;
     eventDate?: string;
+    actualEarnings: number;
 };
 
 
@@ -74,6 +76,10 @@ export function EarningsTab() {
         const unsubscribe = onSnapshot(payoutsQuery, async (snapshot) => {
             const userPayoutDocs = snapshot.docs.filter(doc => doc.data().staffId === user.uid);
             
+            const staffDocSnap = await getDoc(doc(db, 'staff', user.uid));
+            const staffData = staffDocSnap.data() as Staff;
+            const actualEventCharge = staffData?.perEventCharge || 0;
+
             const payoutPromises = userPayoutDocs.map(async (payoutDoc) => {
                 const payoutData = payoutDoc.data();
                 const orderId = payoutDoc.ref.parent.parent!.id;
@@ -96,6 +102,7 @@ export function EarningsTab() {
                     ...payoutData,
                     clientName: clientName,
                     eventDate: eventDate,
+                    actualEarnings: actualEventCharge
                 } as Payout;
             });
 
@@ -147,7 +154,7 @@ export function EarningsTab() {
                 <TableCell>
                      <Badge variant={payout.status === 'Paid' ? 'secondary' : 'destructive'}>{payout.status}</Badge>
                 </TableCell>
-                <TableCell className="text-right font-semibold">₹{payout.amount.toFixed(2)}</TableCell>
+                <TableCell className="text-right font-semibold">₹{payout.actualEarnings.toFixed(2)}</TableCell>
             </TableRow>
         ));
     }

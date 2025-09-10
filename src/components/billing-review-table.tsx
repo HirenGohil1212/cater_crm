@@ -288,7 +288,7 @@ export function BillingReviewTable() {
                     </Select>
                 </div>
                  <div className="space-y-2">
-                    <Label>Staff Payouts</Label>
+                    <Label>Staff Payouts (Client Billable Rate)</Label>
                     {loadingPayouts ? <Skeleton className="h-24 w-full" /> : (
                         payouts.length > 0 ? payouts.map(payout => (
                             <div key={payout.staffId} className="grid grid-cols-3 items-center gap-4">
@@ -298,10 +298,10 @@ export function BillingReviewTable() {
                                 <Input 
                                     id={`payout-${payout.staffId}`}
                                     type="number"
-                                    value={payout.amount}
+                                    defaultValue={payout.amount}
                                     onChange={(e) => handlePayoutChange(payout.staffId, e.target.value)}
                                     className="col-span-2"
-                                    placeholder={`Default: ₹${payout.perEventCharge}`}
+                                    placeholder={`Base: ₹${payout.perEventCharge}`}
                                 />
                             </div>
                         )) : <p className="text-sm text-muted-foreground text-center">No staff were assigned to this event.</p>
