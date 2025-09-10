@@ -43,10 +43,10 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, DollarSign, Users, Loader2, PlusCircle } from "lucide-react";
+import { FileText, DollarSign, Users, Loader2, PlusCircle, CheckCircle } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, setDoc, where, getDocs, addDoc, serverTimestamp, collectionGroup } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GenerateInvoiceOutput } from "@/ai/flows/generate-invoice-flow";
 import { generateInvoice } from "@/ai/flows/generate-invoice-flow";
@@ -92,6 +92,17 @@ type LedgerEntry = {
     type: 'invoice' | 'payment';
 };
 
+type Payout = {
+    id: string;
+    orderId: string;
+    staffId: string;
+    staffName: string;
+    amount: number;
+    status: 'Pending' | 'Paid';
+    clientName?: string;
+    eventDate?: string;
+};
+
 const paymentSchema = z.object({
     amount: z.coerce.number().min(0.01, "Amount must be greater than 0."),
     date: z.date(),
@@ -108,6 +119,123 @@ async function getUserName(userId: string): Promise<string> {
     return "Unknown User";
 }
 
+function StaffPayouts() {
+    const [payouts, setPayouts] = useState<Payout[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [payingId, setPayingId] = useState<string | null>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const payoutsQuery = query(collectionGroup(db, 'payouts'), where('status', '==', 'Pending'));
+
+        const unsubscribe = onSnapshot(payoutsQuery, async (snapshot) => {
+            const payoutPromises = snapshot.docs.map(async (payoutDoc) => {
+                const payoutData = payoutDoc.data();
+                const orderId = payoutDoc.ref.parent.parent!.id;
+                
+                const orderRef = doc(db, 'orders', orderId);
+                const orderSnap = await getDoc(orderRef);
+                
+                let clientName = 'Unknown Client';
+                let eventDate = 'Unknown Date';
+
+                if(orderSnap.exists()){
+                    const orderData = orderSnap.data();
+                    clientName = await getUserName(orderData.userId);
+                    eventDate = orderData.date;
+                }
+
+                return {
+                    id: payoutDoc.id,
+                    orderId: orderId,
+                    ...payoutData,
+                    clientName: clientName,
+                    eventDate: eventDate,
+                } as Payout;
+            });
+
+            const payoutList = await Promise.all(payoutPromises);
+            setPayouts(payoutList);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    const handleApprovePayment = async (payout: Payout) => {
+        setPayingId(payout.id);
+        const payoutRef = doc(db, 'orders', payout.orderId, 'payouts', payout.id);
+        try {
+            await updateDoc(payoutRef, { status: 'Paid' });
+            toast({
+                title: "Payment Approved",
+                description: `Payment of ₹${payout.amount} for ${payout.staffName} has been marked as paid.`,
+            });
+        } catch (error) {
+            console.error("Error approving payment:", error);
+            toast({ variant: 'destructive', title: "Error", description: "Could not approve the payment." });
+        } finally {
+            setPayingId(null);
+        }
+    };
+
+    if (loading) {
+        return <Skeleton className="w-full h-64" />;
+    }
+
+    if (payouts.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 border-2 border-dashed rounded-lg bg-muted/30">
+                <DollarSign className="h-16 w-16 mb-4" />
+                <h3 className="text-xl font-semibold">All Payouts Settled</h3>
+                <p>There are no pending staff payouts.</p>
+            </div>
+        );
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Staff Payouts</CardTitle>
+                <CardDescription>Approve and process payouts for staff members.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Staff Name</TableHead>
+                            <TableHead>Client / Event</TableHead>
+                            <TableHead>Event Date</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {payouts.map((payout) => (
+                            <TableRow key={payout.id}>
+                                <TableCell className="font-medium">{payout.staffName}</TableCell>
+                                <TableCell>{payout.clientName}</TableCell>
+                                <TableCell>{payout.eventDate ? format(new Date(payout.eventDate), 'PPP') : 'N/A'}</TableCell>
+                                <TableCell>₹{payout.amount.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">
+                                    <Button 
+                                        size="sm"
+                                        disabled={payingId === payout.id}
+                                        onClick={() => handleApprovePayment(payout)}
+                                        className="bg-accent text-accent-foreground hover:bg-accent/90"
+                                    >
+                                        {payingId === payout.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                                        Approve Payment
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
 
 function ClientLedgers() {
     const [clients, setClients] = useState<Client[]>([]);
@@ -303,8 +431,8 @@ function ClientLedgers() {
                 <Accordion type="single" collapsible className="w-full" onValueChange={fetchLedgerForClient}>
                     {clients.map(client => (
                         <AccordionItem value={client.id} key={client.id}>
-                            <div className="flex items-center w-full pr-4 py-4">
-                                <AccordionTrigger className="flex-1 py-0">
+                            <div className="flex items-center w-full">
+                                <AccordionTrigger className="flex-1 py-4">
                                     <span>{client.companyName}</span>
                                 </AccordionTrigger>
                                 <Button size="sm" variant="outline" className="ml-4" onClick={() => handleOpenPaymentDialog(client)}>
@@ -447,20 +575,8 @@ export default function AccountantDashboardPage() {
           <TabsContent value="ledgers" className="mt-4">
               <ClientLedgers />
           </TabsContent>
-          <TabsContent value="payouts">
-              <Card>
-                 <CardHeader>
-                    <CardTitle>Staff Payouts</CardTitle>
-                    <CardDescription>Approve and process payouts for staff members.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                   <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 border-2 border-dashed rounded-lg bg-muted/30">
-                        <DollarSign className="h-16 w-16 mb-4" />
-                        <h3 className="text-xl font-semibold">Staff Payouts</h3>
-                        <p>Feature coming soon.</p>
-                    </div>
-                </CardContent>
-              </Card>
+          <TabsContent value="payouts" className="mt-4">
+              <StaffPayouts />
           </TabsContent>
         </Tabs>
       </CardContent>
