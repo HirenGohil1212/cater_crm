@@ -31,7 +31,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileClock, Loader2, CalendarCheck, FileEdit, Users, Star, ClipboardCheck, UserCheck, Upload, Trash2 } from "lucide-react";
+import { CheckCircle, FileClock, Loader2, CalendarCheck, FileEdit, Users, Star, ClipboardCheck, UserCheck, Upload, Trash2, DollarSign } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
@@ -46,6 +46,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import Image from "next/image";
+import { EarningsTab } from "@/components/earnings-tab";
 
 
 type Staff = {
@@ -379,9 +380,10 @@ export default function CaptainButlerDashboardPage() {
                     <CardDescription>Oversee events, manage your team, and set your availability.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <TabsList className="grid w-full grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="events"><FileEdit className="mr-2 h-4 w-4" />Event Management</TabsTrigger>
                         <TabsTrigger value="availability"><CalendarCheck className="mr-2 h-4 w-4" />My Availability</TabsTrigger>
+                        <TabsTrigger value="earnings"><DollarSign className="mr-2 h-4 w-4" />My Earnings</TabsTrigger>
                     </TabsList>
                 </CardContent>
             </Card>
@@ -392,7 +394,9 @@ export default function CaptainButlerDashboardPage() {
             <TabsContent value="availability" className="mt-4">
                 <AvailabilityTab />
             </TabsContent>
+            <TabsContent value="earnings" className="mt-4">
+                <EarningsTab />
+            </TabsContent>
         </Tabs>
     )
 }
-
