@@ -57,13 +57,6 @@ export function LoginForm() {
         let role = 'consumer'; // Default role
         if (userDocSnap.exists()) {
             role = userDocSnap.data().role || 'consumer';
-        } else {
-            // This case might happen for staff members who are not in the 'users' collection
-            const staffDocRef = doc(db, "staff", user.uid);
-            const staffDocSnap = await getDoc(staffDocRef);
-             if (staffDocSnap.exists()) {
-                role = staffDocSnap.data().role || 'waiter';
-             }
         }
         
         toast({
@@ -71,7 +64,14 @@ export function LoginForm() {
             description: `Welcome! Redirecting to your dashboard.`,
         });
         
-        router.push(`/dashboard/${role}`);
+        // Special handling for waiter roles that share a dashboard
+        const waiterRoles = ['waiter', 'waiter-steward', 'pro', 'senior-pro', 'supervisor', 'captain-butler'];
+        if(waiterRoles.includes(role)){
+            router.push(`/dashboard/waiter`);
+        } else {
+            router.push(`/dashboard/${role}`);
+        }
+        
 
     } catch (error: any) {
         console.error("Login failed:", error);
