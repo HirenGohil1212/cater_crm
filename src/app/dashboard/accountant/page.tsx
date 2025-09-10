@@ -60,6 +60,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import type { Staff } from "@/app/dashboard/admin/staff/page";
 
 type Order = {
   id: string;
@@ -130,28 +131,40 @@ function StaffPayouts() {
         const payoutsQuery = query(collectionGroup(db, 'payouts'));
 
         const unsubscribe = onSnapshot(payoutsQuery, async (snapshot) => {
-            const pendingPayouts = snapshot.docs.filter(doc => doc.data().status === 'Pending');
+            const allPayoutDocs = snapshot.docs;
+            const pendingPayoutDocs = allPayoutDocs.filter(doc => doc.data().status === 'Pending');
 
-            const payoutPromises = pendingPayouts.map(async (payoutDoc) => {
+            const payoutPromises = pendingPayoutDocs.map(async (payoutDoc) => {
                 const payoutData = payoutDoc.data();
                 const orderId = payoutDoc.ref.parent.parent!.id;
                 
                 const orderRef = doc(db, 'orders', orderId);
                 const orderSnap = await getDoc(orderRef);
                 
+                const staffRef = doc(db, 'staff', payoutData.staffId);
+                const staffSnap = await getDoc(staffRef);
+
                 let clientName = 'Unknown Client';
                 let eventDate = 'Unknown Date';
+                let actualPayoutAmount = 0;
 
                 if(orderSnap.exists()){
                     const orderData = orderSnap.data();
                     clientName = await getUserName(orderData.userId);
                     eventDate = orderData.date;
                 }
+                
+                if (staffSnap.exists()) {
+                    const staffData = staffSnap.data() as Staff;
+                    actualPayoutAmount = staffData.perEventCharge || 0;
+                }
+
 
                 return {
                     id: payoutDoc.id,
                     orderId: orderId,
                     ...payoutData,
+                    amount: actualPayoutAmount, // Replace billed amount with actual payout
                     clientName: clientName,
                     eventDate: eventDate,
                 } as Payout;
