@@ -1,5 +1,6 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Users, Calendar, DollarSign, AlertTriangle, Briefcase, FileText, MessageSquare, Settings, Shield } from "lucide-react";
+import { BarChart, Users, Calendar, DollarSign, AlertTriangle, Briefcase, FileText, MessageSquare, Settings, Shield, Building2 } from "lucide-react";
 import Link from "next/link";
 
 const adminFeatures = [
@@ -7,6 +8,7 @@ const adminFeatures = [
     { title: "Event Management", description: "View and manage all upcoming and past events.", icon: Calendar, href: "/dashboard/admin/events" },
     { title: "Billing & Finance", description: "Handle GST/Non-GST bills, ledgers, and payouts.", icon: DollarSign, href: "/dashboard/admin/billing" },
     { title: "Reports & Penalties", description: "Generate reports and manage staff penalties.", icon: BarChart, href: "/dashboard/admin/reports" },
+    { title: "Firms Management", description: "Manage different company entities for billing.", icon: Building2, href: "/dashboard/admin/firms" },
     { title: "Client Management", description: "Oversee all client accounts and agreements.", icon: Briefcase, href: "/dashboard/sales" },
     { title: "Operations", description: "Assign staff to events and manage logistics.", icon: Shield, href: "/dashboard/operational-manager" },
     { title: "HR & Training", description: "Manage staff inquiries, training, and agreements.", icon: FileText, href: "/dashboard/hr" },

@@ -71,6 +71,7 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/admin/events", label: "Events", icon: Calendar },
     { href: "/dashboard/admin/billing", label: "Billing", icon: DollarSign },
     { href: "/dashboard/admin/reports", label: "Reports", icon: BarChart },
+    { href: "/dashboard/admin/firms", label: "Firms", icon: Building2 },
   ],
 };
 
