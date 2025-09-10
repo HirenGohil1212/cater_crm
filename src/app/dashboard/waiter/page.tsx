@@ -2,7 +2,7 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Calendar as CalendarIcon, CheckSquare, FileText, Upload, UserCheck, CalendarCheck, FileClock, MapPin, Camera, Video, VideoOff } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, FileText, Upload, UserCheck, CalendarCheck, FileClock, MapPin, Camera, Video, VideoOff, DollarSign } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { AvailabilityTab } from '@/components/availability-tab';
 import { format } from 'date-fns';
+import { EarningsTab } from '@/components/earnings-tab';
 
 
 type AssignedEvent = {
@@ -272,30 +273,13 @@ function UpcomingEventsTab() {
 }
 
 
-function PlaceholderTab({ title, icon: Icon }: { title: string, icon: React.ElementType }) {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 border-2 border-dashed rounded-lg bg-muted/30">
-                    <Icon className="h-16 w-16 mb-4" />
-                    <h3 className="text-xl font-semibold">{title}</h3>
-                    <p>Feature coming soon.</p>
-                </div>
-            </CardContent>
-        </Card>
-    )
-}
-
 export default function WaiterDashboardPage() {
     return (
         <Tabs defaultValue="availability" className="w-full">
             <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="availability"><CalendarCheck className="mr-2 h-4 w-4" />Availability</TabsTrigger>
                 <TabsTrigger value="events"><FileClock className="mr-2 h-4 w-4" />Upcoming Events</TabsTrigger>
-                <TabsTrigger value="ledger"><FileText className="mr-2 h-4 w-4" />Ledger & Penalties</TabsTrigger>
+                <TabsTrigger value="earnings"><DollarSign className="mr-2 h-4 w-4" />My Earnings</TabsTrigger>
                 <TabsTrigger value="grooming"><UserCheck className="mr-2 h-4 w-4" />Grooming Check</TabsTrigger>
             </TabsList>
             <TabsContent value="availability" className="mt-4">
@@ -304,8 +288,8 @@ export default function WaiterDashboardPage() {
             <TabsContent value="events" className="mt-4">
                 <UpcomingEventsTab />
             </TabsContent>
-            <TabsContent value="ledger" className="mt-4">
-                <PlaceholderTab title="Ledger & Penalties" icon={FileText} />
+            <TabsContent value="earnings" className="mt-4">
+                <EarningsTab />
             </TabsContent>
             <TabsContent value="grooming" className="mt-4">
                 <GroomingCheckTab />
@@ -313,4 +297,3 @@ export default function WaiterDashboardPage() {
         </Tabs>
     );
 }
-
