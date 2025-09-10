@@ -66,10 +66,12 @@ export function EarningsTab() {
             return;
         }
 
-        const payoutsQuery = query(collectionGroup(db, 'payouts'), where('staffId', '==', user.uid));
+        const payoutsQuery = query(collectionGroup(db, 'payouts'));
 
         const unsubscribe = onSnapshot(payoutsQuery, async (snapshot) => {
-            const payoutPromises = snapshot.docs.map(async (payoutDoc) => {
+            const userPayoutDocs = snapshot.docs.filter(doc => doc.data().staffId === user.uid);
+            
+            const payoutPromises = userPayoutDocs.map(async (payoutDoc) => {
                 const payoutData = payoutDoc.data();
                 const orderId = payoutDoc.ref.parent.parent!.id;
                 
@@ -169,4 +171,3 @@ export function EarningsTab() {
         </Card>
     );
 }
-
