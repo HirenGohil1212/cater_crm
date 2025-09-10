@@ -56,16 +56,19 @@ export function EarningsTab() {
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
+            if (!currentUser) {
+                setLoading(false);
+            }
         });
         return () => unsubscribeAuth();
     }, []);
 
     useEffect(() => {
         if (!user) {
-            setLoading(false);
             return;
         }
-
+        
+        setLoading(true);
         const payoutsQuery = query(collectionGroup(db, 'payouts'));
 
         const unsubscribe = onSnapshot(payoutsQuery, async (snapshot) => {
@@ -97,7 +100,10 @@ export function EarningsTab() {
             });
 
             const payoutList = await Promise.all(payoutPromises);
-            payoutList.sort((a,b) => new Date(b.eventDate!).getTime() - new Date(a.eventDate!).getTime());
+            payoutList.sort((a,b) => {
+                if (!a.eventDate || !b.eventDate) return 0;
+                return new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()
+            });
             setPayouts(payoutList);
             setLoading(false);
         }, (error) => {
