@@ -33,7 +33,7 @@ type Order = {
   id: string;
   date: string;
   attendees: number;
-  status: "Pending" | "Confirmed" | "Completed" | "Cancelled";
+  status: "Pending" | "Confirmed" | "Completed" | "Cancelled" | "Reviewed";
   menuType: "veg" | "non-veg";
   userId: string;
   userName?: string;
@@ -84,7 +84,9 @@ export function InvoiceList() {
           });
   
           const userOrders = await Promise.all(userOrdersPromises);
-          setOrders(userOrders as Order[]);
+          // Only show Reviewed or Completed orders that can be invoiced
+          const filteredOrders = userOrders.filter(o => o.status === 'Reviewed' || o.status === 'Completed');
+          setOrders(filteredOrders as Order[]);
           setLoading(false);
       }, (error) => {
           console.error("Error fetching all orders: ", error);
@@ -161,7 +163,7 @@ export function InvoiceList() {
       }
       
       if (orders.length === 0) {
-        return <p className="text-center text-muted-foreground py-12">No orders to invoice yet.</p>
+        return <p className="text-center text-muted-foreground py-12">No orders ready to be invoiced.</p>
       }
 
     return (
@@ -184,7 +186,7 @@ export function InvoiceList() {
                         <TableCell>{order.date}</TableCell>
                         <TableCell>{order.attendees}</TableCell>
                         <TableCell>
-                            <Badge variant={order.status === "Completed" ? "default" : "secondary"}>{order.status}</Badge>
+                            <Badge variant={order.status === "Reviewed" ? "default" : "secondary"}>{order.status}</Badge>
                         </TableCell>
                          <TableCell>
                             <Badge variant={order.invoiceStatus === 'Generated' ? 'secondary' : 'destructive'}>{order.invoiceStatus}</Badge>
@@ -193,7 +195,7 @@ export function InvoiceList() {
                            <Button 
                              variant="outline" 
                              size="sm"
-                             disabled={isGenerating === order.id}
+                             disabled={isGenerating === order.id || order.status !== 'Reviewed'}
                              onClick={() => order.invoiceStatus === 'Generated' ? handleViewInvoice(order.id) : handleGenerateInvoice(order)}
                             >
                              {isGenerating === order.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
@@ -212,7 +214,7 @@ export function InvoiceList() {
                         <DialogHeader>
                             <DialogTitle>Invoice #{selectedInvoice.invoiceNumber}</DialogTitle>
                             <DialogDescription>
-                                Invoice for {selectedInvoice.client.name} - Event on {selectedInvoice.eventDate}
+                                Invoice for {selectedInvoice.client.companyName} - Event on {selectedInvoice.eventDate}
                             </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 p-4 border rounded-lg">
@@ -233,6 +235,8 @@ export function InvoiceList() {
                                <TableHeader>
                                    <TableRow>
                                        <TableHead>Description</TableHead>
+                                       <TableHead className="text-center">Quantity</TableHead>
+                                       <TableHead className="text-center">Rate</TableHead>
                                        <TableHead className="text-right">Amount</TableHead>
                                    </TableRow>
                                </TableHeader>
@@ -240,6 +244,8 @@ export function InvoiceList() {
                                    {selectedInvoice.lineItems.map((item, index) => (
                                      <TableRow key={index}>
                                         <TableCell>{item.description}</TableCell>
+                                        <TableCell className="text-center">{item.quantity}</TableCell>
+                                        <TableCell className="text-center">₹{item.rate.toFixed(2)}</TableCell>
                                         <TableCell className="text-right">₹{item.amount.toFixed(2)}</TableCell>
                                      </TableRow>
                                    ))}
@@ -257,7 +263,7 @@ export function InvoiceList() {
                                         <span className="text-muted-foreground">GST ({selectedInvoice.gstRate}%):</span>
                                         <span className="font-medium">₹{selectedInvoice.gstAmount.toFixed(2)}</span>
                                     </div>
-                                     <div className="flex justify-between font-bold text-base">
+                                     <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
                                         <span>Total:</span>
                                         <span>₹{selectedInvoice.totalAmount.toFixed(2)}</span>
                                     </div>

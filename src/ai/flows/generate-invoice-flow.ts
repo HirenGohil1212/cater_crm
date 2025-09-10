@@ -10,9 +10,10 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
+import { capitalize } from '@/lib/utils';
 
 // Define Zod Schemas for input and output
 const GenerateInvoiceInputSchema = z.object({
@@ -22,6 +23,8 @@ export type GenerateInvoiceInput = z.infer<typeof GenerateInvoiceInputSchema>;
 
 const LineItemSchema = z.object({
     description: z.string(),
+    quantity: z.number(),
+    rate: z.number(),
     amount: z.number(),
 });
 
@@ -106,12 +109,47 @@ const generateInvoiceFlow = ai.defineFlow(
         throw new Error(`User with ID ${orderData.userId} not found.`);
     }
     const userData = userSnap.data();
+
+    // Fetch the payouts which contain the billing rates for each staff member
+    const payoutsRef = collection(db, 'orders', orderId, 'payouts');
+    const payoutsSnap = await getDocs(payoutsRef);
+
+    if (payoutsSnap.empty) {
+        throw new Error(`No payout information found for order ${orderId}. Cannot generate invoice.`);
+    }
+
+    const staffRolePromises = payoutsSnap.docs.map(payoutDoc => 
+        getDoc(doc(db, 'staff', payoutDoc.data().staffId))
+    );
+    const staffDocs = await Promise.all(staffRolePromises);
     
     // 2. Perform all calculations and formatting in code
-    const cateringRate = orderData.menuType === 'veg' ? 1200 : 1500;
-    const cateringCost = cateringRate * orderData.attendees;
-    const serviceCharge = cateringCost * 0.10;
-    const subtotal = cateringCost + serviceCharge;
+    const roleRates: Record<string, { count: number, rate: number }> = {};
+    
+    payoutsSnap.docs.forEach((payoutDoc, index) => {
+        const payoutData = payoutDoc.data();
+        const staffDoc = staffDocs[index];
+        if (staffDoc.exists()) {
+            const staffData = staffDoc.data();
+            const role = staffData.role || 'unknown';
+            if (!roleRates[role]) {
+                roleRates[role] = { count: 0, rate: payoutData.amount };
+            }
+            roleRates[role].count += 1;
+        }
+    });
+
+    const lineItems: z.infer<typeof LineItemSchema>[] = Object.entries(roleRates).map(([role, data]) => {
+        const roleName = capitalize(role.replace('-', ' '));
+        return {
+            description: `${roleName}s`,
+            quantity: data.count,
+            rate: data.rate,
+            amount: data.count * data.rate,
+        };
+    });
+
+    const subtotal = lineItems.reduce((acc, item) => acc + item.amount, 0);
     const gstRate = 18; // Fixed 18%
     const gstAmount = subtotal * (gstRate / 100);
     const totalAmount = subtotal + gstAmount;
@@ -128,14 +166,11 @@ const generateInvoiceFlow = ai.defineFlow(
             address: userData.address || 'Address not provided',
             gstin: userData.gstNumber || 'N/A',
         },
-        lineItems: [
-            { description: `Catering Services (${orderData.attendees} attendees, ${orderData.menuType} menu)`, amount: cateringCost },
-            { description: 'Service Charge (10% of catering cost)', amount: serviceCharge },
-        ],
-        subtotal: subtotal,
-        gstRate: gstRate,
-        gstAmount: gstAmount,
-        totalAmount: totalAmount,
+        lineItems,
+        subtotal,
+        gstRate,
+        gstAmount,
+        totalAmount,
     };
 
     // 3. Pass the fully-formed context to the AI for formatting
