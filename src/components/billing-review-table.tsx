@@ -9,14 +9,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, DocumentData, QueryDocumentSnapshot, doc, getDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { Skeleton } from "./ui/skeleton";
 import { Button } from "./ui/button";
 import { Check, FileWarning, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { Staff } from "@/app/dashboard/admin/staff/page";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 type Order = {
   id: string;
@@ -26,7 +38,16 @@ type Order = {
   userId: string;
   userName?: string;
   createdAt: any;
+  assignedStaff?: string[];
 };
+
+type Payout = {
+    staffId: string;
+    staffName: string;
+    amount: number;
+    perEventCharge: number;
+}
+
 
 async function getUserName(userId: string): Promise<string> {
     const userDocRef = doc(db, "users", userId);
@@ -41,7 +62,12 @@ async function getUserName(userId: string): Promise<string> {
 export function BillingReviewTable() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [approving, setApproving] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [loadingPayouts, setLoadingPayouts] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,11 +86,11 @@ export function BillingReviewTable() {
                 userId: data.userId,
                 userName: userName,
                 createdAt: data.createdAt,
+                assignedStaff: data.assignedStaff || [],
             };
         });
 
         const allOrders = await Promise.all(userOrdersPromises);
-        // Filter for only "Completed" events on the client side
         const completedOrders = allOrders.filter(order => order.status === 'Completed');
         setOrders(completedOrders as Order[]);
         setLoading(false);
@@ -75,27 +101,79 @@ export function BillingReviewTable() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleReviewClick = async (order: Order) => {
+      setSelectedOrder(order);
+      setIsDialogOpen(true);
+      setLoadingPayouts(true);
+      
+      if (order.assignedStaff && order.assignedStaff.length > 0) {
+          const staffPromises = order.assignedStaff.map(staffId => getDoc(doc(db, 'staff', staffId)));
+          const staffDocs = await Promise.all(staffPromises);
+          const staffDetails = staffDocs
+            .filter(doc => doc.exists())
+            .map(doc => ({ id: doc.id, ...doc.data() } as Staff));
+            
+          const initialPayouts = staffDetails.map(staff => ({
+              staffId: staff.id,
+              staffName: staff.name,
+              amount: staff.perEventCharge || 0,
+              perEventCharge: staff.perEventCharge || 0,
+          }));
+          setPayouts(initialPayouts);
+      } else {
+          setPayouts([]);
+      }
+
+      setLoadingPayouts(false);
+  };
   
-  const handleApprove = async (orderId: string) => {
-      setApproving(orderId);
-      const orderRef = doc(db, 'orders', orderId);
+  const handlePayoutChange = (staffId: string, amount: string) => {
+      const numericAmount = parseFloat(amount) || 0;
+      setPayouts(prev => prev.map(p => p.staffId === staffId ? {...p, amount: numericAmount} : p));
+  }
+
+  const handleApprove = async () => {
+      if (!selectedOrder) return;
+      setIsApproving(true);
+      
+      const orderRef = doc(db, 'orders', selectedOrder.id);
+      
       try {
-        await updateDoc(orderRef, {
-            status: 'Reviewed'
-        });
+          const batch = writeBatch(db);
+          
+          // Save each payout record
+          payouts.forEach(payout => {
+              const payoutRef = doc(collection(db, 'orders', selectedOrder.id, 'payouts'));
+              batch.set(payoutRef, {
+                  staffId: payout.staffId,
+                  staffName: payout.staffName,
+                  amount: payout.amount,
+                  status: 'Pending', // Initial status
+              });
+          });
+
+          // Update order status
+          batch.update(orderRef, { status: 'Reviewed' });
+
+          await batch.commit();
+        
         toast({
             title: 'Event Approved',
-            description: 'This event has been passed to the Accountant for invoicing.',
+            description: 'Staff payouts have been recorded and the event is passed to the Accountant.',
         });
+
       } catch (error) {
           console.error('Error approving event:', error);
           toast({
               variant: 'destructive',
               title: 'Approval Failed',
-              description: 'Could not approve the event. Please try again.',
+              description: 'Could not save payouts and approve the event. Please try again.',
           });
       } finally {
-          setApproving(null);
+          setIsApproving(false);
+          setIsDialogOpen(false);
+          setSelectedOrder(null);
       }
   }
 
@@ -125,6 +203,7 @@ export function BillingReviewTable() {
   }
 
   return (
+    <>
     <Table>
       <TableHeader>
         <TableRow>
@@ -144,11 +223,10 @@ export function BillingReviewTable() {
                 <Button 
                     variant="default" 
                     size="sm"
-                    disabled={approving === order.id}
-                    onClick={() => handleApprove(order.id)}
+                    onClick={() => handleReviewClick(order)}
                     className="bg-accent text-accent-foreground hover:bg-accent/90"
                 >
-                    {approving === order.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                    <Check className="mr-2 h-4 w-4" />
                     Review & Approve
                 </Button>
              </TableCell>
@@ -156,5 +234,42 @@ export function BillingReviewTable() {
         ))}
       </TableBody>
     </Table>
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle>Review Event & Set Payouts</DialogTitle>
+                <DialogDescription>
+                    Confirm the payout amounts for each staff member for this event before approving.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+                {loadingPayouts ? <Skeleton className="h-24 w-full" /> : (
+                    payouts.length > 0 ? payouts.map(payout => (
+                        <div key={payout.staffId} className="grid grid-cols-3 items-center gap-4">
+                            <Label htmlFor={`payout-${payout.staffId}`} className="text-right col-span-1">
+                                {payout.staffName}
+                            </Label>
+                            <Input 
+                                id={`payout-${payout.staffId}`}
+                                type="number"
+                                value={payout.amount}
+                                onChange={(e) => handlePayoutChange(payout.staffId, e.target.value)}
+                                className="col-span-2"
+                                placeholder={`Default: ₹${payout.perEventCharge}`}
+                            />
+                        </div>
+                    )) : <p className="text-sm text-muted-foreground text-center">No staff were assigned to this event.</p>
+                )}
+            </div>
+            <DialogFooter>
+                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                <Button onClick={handleApprove} disabled={isApproving}>
+                    {isApproving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isApproving ? 'Saving...' : 'Save & Approve'}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }
