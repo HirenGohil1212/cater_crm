@@ -68,24 +68,47 @@ export async function generateInvoice({ orderId }: GenerateInvoiceInput): Promis
     }
     const userData = userSnap.data();
 
-    // Fetch the payouts which contain the billing rates for each staff member
+    // If order has been "Reviewed", use the payout data as the source of truth
     const payoutsRef = collection(db, 'orders', orderId, 'payouts');
     const payoutsSnap = await getDocs(payoutsRef);
 
-    if (payoutsSnap.empty) {
-        throw new Error(`No payout information found for order ${orderId}. Cannot generate invoice.`);
-    }
+    let staffDocs: any[] = [];
+    let payoutDataList: any[] = [];
 
-    const staffRolePromises = payoutsSnap.docs.map(payoutDoc => 
-        getDoc(doc(db, 'staff', payoutDoc.data().staffId))
-    );
-    const staffDocs = await Promise.all(staffRolePromises);
+    if (!payoutsSnap.empty) {
+        // Payouts exist, use them
+        const staffRolePromises = payoutsSnap.docs.map(payoutDoc => 
+            getDoc(doc(db, 'staff', payoutDoc.data().staffId))
+        );
+        staffDocs = await Promise.all(staffRolePromises);
+        payoutDataList = payoutsSnap.docs.map(p => p.data());
+    } else if (orderData.assignedStaff && orderData.assignedStaff.length > 0) {
+        // No payouts, use assignedStaff from the order (for 'Completed' status)
+        const staffRolePromises = orderData.assignedStaff.map((staffId: string) => 
+            getDoc(doc(db, 'staff', staffId))
+        );
+        staffDocs = await Promise.all(staffRolePromises);
+        // Create a synthetic payout list from staff profiles
+        payoutDataList = staffDocs.map(staffDoc => {
+             if (staffDoc.exists()) {
+                 const staffData = staffDoc.data();
+                 return {
+                     staffId: staffDoc.id,
+                     // Use perEventCharge as the billable amount in this case
+                     amount: staffData.perEventCharge || 0 
+                 }
+             }
+             return null;
+        }).filter(p => p !== null);
+    } else {
+        // This is the case we want to prevent. No staff info to bill.
+        throw new Error(`No staff or payout information found for order ${orderId}. Cannot generate invoice.`);
+    }
     
     // 2. Perform all calculations and formatting in code
     const roleRates: Record<string, { count: number, rate: number | null }> = {};
     
-    payoutsSnap.docs.forEach((payoutDoc, index) => {
-        const payoutData = payoutDoc.data();
+    payoutDataList.forEach((payoutData, index) => {
         const staffDoc = staffDocs[index];
         if (staffDoc.exists()) {
             const staffData = staffDoc.data();
