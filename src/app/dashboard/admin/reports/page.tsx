@@ -68,7 +68,7 @@ export default function AdminReportsPage() {
     useEffect(() => {
         const invoicesQuery = query(collection(db, "invoices"));
         const unsubInvoices = onSnapshot(invoicesQuery, (snapshot) => {
-            const invoices: Invoice[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice));
+            const invoices: Invoice[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), firmId: doc.data().firmId || 'N/A' } as Invoice));
             setAllInvoices(invoices);
             if(!snapshot.metadata.hasPendingWrites) setLoading(false);
         }, (error) => {
@@ -76,9 +76,9 @@ export default function AdminReportsPage() {
             setLoading(false);
         });
 
-        const payoutsQuery = query(collectionGroup(db, 'payouts'), orderBy('eventDate', 'desc'));
+        const payoutsQuery = query(collectionGroup(db, 'payouts'));
         const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
-            const paidPayouts = snapshot.docs
+            let paidPayouts = snapshot.docs
                 .filter(doc => doc.data().status === 'Paid')
                 .map(doc => ({
                     id: doc.id,
@@ -86,6 +86,12 @@ export default function AdminReportsPage() {
                     ...doc.data()
                 } as Payout));
             
+            // Sort by eventDate on the client-side to avoid index error
+            paidPayouts.sort((a,b) => {
+                if (!a.eventDate || !b.eventDate) return 0;
+                return new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime();
+            });
+
             setRecentPayouts(paidPayouts.slice(0, 10));
             
             if(!snapshot.metadata.hasPendingWrites) setLoading(false);
