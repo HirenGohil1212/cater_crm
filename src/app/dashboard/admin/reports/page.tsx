@@ -74,10 +74,7 @@ export default function AdminReportsPage() {
     useEffect(() => {
         const invoicesQuery = query(collection(db, "invoices"));
         const unsubInvoices = onSnapshot(invoicesQuery, (snapshot) => {
-            const invoices: Invoice[] = [];
-            snapshot.forEach(doc => {
-                invoices.push({ id: doc.id, ...doc.data() } as Invoice);
-            });
+            const invoices: Invoice[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice));
             setAllInvoices(invoices);
             if(!snapshot.metadata.hasPendingWrites) setLoading(false);
         }, (error) => {
@@ -122,17 +119,16 @@ export default function AdminReportsPage() {
 
     useEffect(() => {
       const calculateStats = async () => {
-          // 1. Calculate Total Revenue (In) from all invoices
           const totalRevenue = allInvoices.reduce((acc, invoice) => acc + invoice.totalAmount, 0);
 
-          // 2. Fetch all paid payouts
-          const payoutsQuery = query(collectionGroup(db, 'payouts'), where('status', '==', 'Paid'));
-          const paidPayoutsSnapshot = await getDocs(payoutsQuery);
+          const payoutsQuery = query(collectionGroup(db, 'payouts'));
+          const allPayoutsSnapshot = await getDocs(payoutsQuery);
+          const paidPayoutsSnapshot = allPayoutsSnapshot.docs.filter(doc => doc.data().status === 'Paid');
           
           let totalBilledForStaff = 0;
           let totalActualStaffCost = 0;
 
-          for (const payoutDoc of paidPayoutsSnapshot.docs) {
+          for (const payoutDoc of paidPayoutsSnapshot) {
               const payoutData = payoutDoc.data();
               totalBilledForStaff += payoutData.amount;
               
@@ -144,10 +140,8 @@ export default function AdminReportsPage() {
               }
           }
 
-          // 3. Calculate Net Profit
           const netProfit = totalBilledForStaff - totalActualStaffCost;
 
-          // 4. Update state
           setStats({
               totalIn: totalRevenue,
               totalOut: totalActualStaffCost,
