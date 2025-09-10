@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Staff } from "@/app/dashboard/admin/staff/page";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 type Order = {
   id: string;
@@ -48,6 +49,11 @@ type Payout = {
     perEventCharge: number;
 }
 
+type Firm = {
+    id: string;
+    companyName: string;
+}
+
 
 async function getUserName(userId: string): Promise<string> {
     const userDocRef = doc(db, "users", userId);
@@ -61,9 +67,11 @@ async function getUserName(userId: string): Promise<string> {
 
 export function BillingReviewTable() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [firms, setFirms] = useState<Firm[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedFirmId, setSelectedFirmId] = useState<string | null>(null);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loadingPayouts, setLoadingPayouts] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -71,10 +79,10 @@ export function BillingReviewTable() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Fetch orders
     const ordersRef = collection(db, "orders");
-    const q = query(ordersRef, orderBy("createdAt", "desc"));
-
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+    const qOrders = query(ordersRef, orderBy("createdAt", "desc"));
+    const unsubscribeOrders = onSnapshot(qOrders, async (querySnapshot) => {
         const userOrdersPromises = querySnapshot.docs.map(async (docSnap: QueryDocumentSnapshot<DocumentData>) => {
             const data = docSnap.data();
             const userName = await getUserName(data.userId);
@@ -89,7 +97,6 @@ export function BillingReviewTable() {
                 assignedStaff: data.assignedStaff || [],
             };
         });
-
         const allOrders = await Promise.all(userOrdersPromises);
         const completedOrders = allOrders.filter(order => order.status === 'Completed');
         setOrders(completedOrders as Order[]);
@@ -99,11 +106,23 @@ export function BillingReviewTable() {
         setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Fetch firms
+    const firmsRef = collection(db, "firms");
+    const qFirms = query(firmsRef, orderBy("companyName"));
+    const unsubscribeFirms = onSnapshot(qFirms, (snapshot) => {
+        const firmsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Firm));
+        setFirms(firmsList);
+    });
+
+    return () => {
+        unsubscribeOrders();
+        unsubscribeFirms();
+    };
   }, []);
 
   const handleReviewClick = async (order: Order) => {
       setSelectedOrder(order);
+      setSelectedFirmId(null);
       setIsDialogOpen(true);
       setLoadingPayouts(true);
       
@@ -135,6 +154,14 @@ export function BillingReviewTable() {
 
   const handleApprove = async () => {
       if (!selectedOrder) return;
+      if (!selectedFirmId) {
+          toast({
+              variant: 'destructive',
+              title: 'Validation Error',
+              description: 'Please select a billing firm before approving.',
+          });
+          return;
+      }
       setIsApproving(true);
       
       const orderRef = doc(db, 'orders', selectedOrder.id);
@@ -153,8 +180,11 @@ export function BillingReviewTable() {
               });
           });
 
-          // Update order status
-          batch.update(orderRef, { status: 'Reviewed' });
+          // Update order status and add firmId
+          batch.update(orderRef, { 
+              status: 'Reviewed',
+              firmId: selectedFirmId 
+            });
 
           await batch.commit();
         
@@ -174,6 +204,7 @@ export function BillingReviewTable() {
           setIsApproving(false);
           setIsDialogOpen(false);
           setSelectedOrder(null);
+          setSelectedFirmId(null);
       }
   }
 
@@ -239,27 +270,43 @@ export function BillingReviewTable() {
             <DialogHeader>
                 <DialogTitle>Review Event & Set Payouts</DialogTitle>
                 <DialogDescription>
-                    Confirm the payout amounts for each staff member for this event before approving.
+                    Confirm the payout amounts for each staff member and select the billing firm.
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
-                {loadingPayouts ? <Skeleton className="h-24 w-full" /> : (
-                    payouts.length > 0 ? payouts.map(payout => (
-                        <div key={payout.staffId} className="grid grid-cols-3 items-center gap-4">
-                            <Label htmlFor={`payout-${payout.staffId}`} className="text-right col-span-1">
-                                {payout.staffName}
-                            </Label>
-                            <Input 
-                                id={`payout-${payout.staffId}`}
-                                type="number"
-                                value={payout.amount}
-                                onChange={(e) => handlePayoutChange(payout.staffId, e.target.value)}
-                                className="col-span-2"
-                                placeholder={`Default: ₹${payout.perEventCharge}`}
-                            />
-                        </div>
-                    )) : <p className="text-sm text-muted-foreground text-center">No staff were assigned to this event.</p>
-                )}
+                <div className="space-y-2">
+                    <Label>Billing Firm</Label>
+                    <Select onValueChange={setSelectedFirmId} value={selectedFirmId || ''}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a firm to bill from" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {firms.map(firm => (
+                                <SelectItem key={firm.id} value={firm.id}>{firm.companyName}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                 <div className="space-y-2">
+                    <Label>Staff Payouts</Label>
+                    {loadingPayouts ? <Skeleton className="h-24 w-full" /> : (
+                        payouts.length > 0 ? payouts.map(payout => (
+                            <div key={payout.staffId} className="grid grid-cols-3 items-center gap-4">
+                                <Label htmlFor={`payout-${payout.staffId}`} className="text-right col-span-1">
+                                    {payout.staffName}
+                                </Label>
+                                <Input 
+                                    id={`payout-${payout.staffId}`}
+                                    type="number"
+                                    value={payout.amount}
+                                    onChange={(e) => handlePayoutChange(payout.staffId, e.target.value)}
+                                    className="col-span-2"
+                                    placeholder={`Default: ₹${payout.perEventCharge}`}
+                                />
+                            </div>
+                        )) : <p className="text-sm text-muted-foreground text-center">No staff were assigned to this event.</p>
+                    )}
+                </div>
             </div>
             <DialogFooter>
                 <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
