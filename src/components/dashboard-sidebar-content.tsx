@@ -66,7 +66,7 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
   ],
   admin: [
     { href: "/dashboard/admin", label: "Admin Dashboard", icon: Shield },
-    { href: "/dashboard/admin/users", label: "Users", icon: User },
+    { href: "/dashboard/admin/users", label: "User Management", icon: User },
     { href: "/dashboard/admin/staff", label: "Staff", icon: Users },
     { href: "/dashboard/admin/events", label: "Events", icon: Calendar },
     { href: "/dashboard/admin/billing", label: "Billing", icon: DollarSign },

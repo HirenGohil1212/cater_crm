@@ -106,6 +106,7 @@ function AddClientForm({ onClientAdded }: { onClientAdded: () => void }) {
             toast({
                 title: "Action Required",
                 description: "For security, you have been logged out. Please log in again to continue.",
+                duration: 7000,
             });
         }
     }

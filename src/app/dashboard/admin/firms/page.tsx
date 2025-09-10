@@ -107,7 +107,7 @@ function AddFirmForm({ onFirmAdded }: { onFirmAdded: () => void }) {
         <Card>
             <CardHeader>
                 <CardTitle>Add New Firm</CardTitle>
-                <CardDescription>Add a new company profile for billing purposes.</CardDescription>
+                <CardDescription>Add one of your own company profiles for billing purposes.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Form {...form}>
@@ -204,7 +204,7 @@ function FirmsList({ listKey }: { listKey: number }) {
          <Card>
             <CardHeader>
                 <CardTitle>Registered Firms</CardTitle>
-                <CardDescription>List of all billing entities.</CardDescription>
+                <CardDescription>List of all your billing entities.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>

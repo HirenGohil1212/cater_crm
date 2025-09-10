@@ -1,9 +1,10 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Users, Calendar, DollarSign, AlertTriangle, Briefcase, FileText, MessageSquare, Settings, Shield, Building2 } from "lucide-react";
+import { BarChart, Users, Calendar, DollarSign, AlertTriangle, Briefcase, FileText, MessageSquare, Settings, Shield, Building2, User } from "lucide-react";
 import Link from "next/link";
 
 const adminFeatures = [
+    { title: "User Management", description: "View and manage all users and roles.", icon: User, href: "/dashboard/admin/users" },
     { title: "Staff Management", description: "Add, edit, and track all staff members.", icon: Users, href: "/dashboard/admin/staff" },
     { title: "Event Management", description: "View and manage all upcoming and past events.", icon: Calendar, href: "/dashboard/admin/events" },
     { title: "Billing & Finance", description: "Handle GST/Non-GST bills, ledgers, and payouts.", icon: DollarSign, href: "/dashboard/admin/billing" },

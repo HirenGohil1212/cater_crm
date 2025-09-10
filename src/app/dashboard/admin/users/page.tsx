@@ -159,7 +159,7 @@ export default function AdminUsersPage() {
         <Card>
             <CardHeader>
                 <CardTitle>User Management</CardTitle>
-                <CardDescription>View all registered client users and manage their roles.</CardDescription>
+                <CardDescription>View all registered users and manage their roles.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
