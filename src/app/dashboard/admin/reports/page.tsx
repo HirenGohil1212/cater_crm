@@ -77,9 +77,9 @@ export default function AdminReportsPage() {
             let totalRevenue = 0;
             const invoices: Invoice[] = [];
             snapshot.forEach(doc => {
-                const data = doc.data() as Invoice;
+                const data = doc.data();
                 totalRevenue += data.totalAmount;
-                invoices.push({ id: doc.id, ...data });
+                invoices.push({ id: doc.id, ...data } as Invoice);
             });
             setAllInvoices(invoices);
             setStats(prev => ({ ...prev, totalIn: totalRevenue }));
