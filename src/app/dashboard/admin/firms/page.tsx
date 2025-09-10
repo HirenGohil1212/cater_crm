@@ -229,13 +229,9 @@ export default function AdminFirmsPage() {
     const [listKey, setListKey] = useState(0);
 
     return (
-        <div className="grid gap-4 md:gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-1">
-                <AddFirmForm onFirmAdded={() => setListKey(k => k + 1)} />
-            </div>
-            <div className="lg:col-span-2">
-                <FirmsList listKey={listKey} />
-            </div>
+        <div className="space-y-8">
+            <AddFirmForm onFirmAdded={() => setListKey(k => k + 1)} />
+            <FirmsList listKey={listKey} />
         </div>
     );
 }
