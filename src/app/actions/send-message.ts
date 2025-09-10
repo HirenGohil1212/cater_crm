@@ -23,10 +23,10 @@ export async function sendMessage(input: SendMessageInput) {
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
-  if (!accountSid || !authToken || !twilioPhone) {
-    throw new Error('Twilio credentials are not configured in environment variables.');
+  if (!accountSid || !authToken || !messagingServiceSid) {
+    throw new Error('Twilio credentials, including Messaging Service SID, are not configured in environment variables.');
   }
 
   const client = twilio(accountSid, authToken);
@@ -55,12 +55,9 @@ export async function sendMessage(input: SendMessageInput) {
       .filter(phone => !!phone);
 
     const messagePromises = phoneNumbers.map(number => {
-      // For trial accounts, WhatsApp messages need 'whatsapp:' prefix on both 'from' and 'to'
-      // and for SMS, the 'to' number needs to be a verified number.
-      // We are sending SMS here. Twilio will handle the 'from' number format.
       return client.messages.create({
         body: message,
-        from: twilioPhone,
+        messagingServiceSid: messagingServiceSid,
         to: number,
       });
     });
