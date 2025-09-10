@@ -1,16 +1,15 @@
 
 'use server';
 /**
- * @fileOverview An AI flow to generate a detailed invoice for a client event.
+ * @fileOverview A flow to generate a detailed invoice for a client event.
  *
  * - generateInvoice - A function that creates an invoice based on an order ID.
  * - GenerateInvoiceInput - The input type for the generateInvoice function.
  * - GenerateInvoiceOutput - The return type for the generateInvoice function.
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { doc, getDoc, collection, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { capitalize } from '@/lib/utils';
@@ -50,49 +49,8 @@ const GenerateInvoiceOutputSchema = z.object({
 export type GenerateInvoiceOutput = z.infer<typeof GenerateInvoiceOutputSchema>;
 
 
-/**
- * A simple context object passed to the prompt.
- * The AI's job is just to format this, not calculate it.
- */
-const PromptContextSchema = GenerateInvoiceOutputSchema;
-
-
-// Exported function that wraps the Genkit flow
-export async function generateInvoice(input: GenerateInvoiceInput): Promise<GenerateInvoiceOutput> {
-  return generateInvoiceFlow(input);
-}
-
-
-const prompt = ai.definePrompt({
-    name: 'generateInvoicePrompt',
-    input: { schema: PromptContextSchema }, 
-    output: { schema: GenerateInvoiceOutputSchema },
-    prompt: `
-      You are an expert accounting assistant for an event staffing company.
-      Your task is to take the provided, fully calculated invoice data and ensure it is formatted correctly into the specified JSON output structure.
-
-      **DO NOT CHANGE ANY VALUES. Use the exact data provided.**
-
-      **INVOICE DATA:**
-      - Invoice Number: {{{invoiceNumber}}}
-      - Invoice Date: {{{invoiceDate}}}
-      - Event Date: {{{eventDate}}}
-      - Client Info: {{{json client}}}
-      - Line Items: {{{json lineItems}}}
-      - Subtotal: {{{subtotal}}}
-      - GST Rate: {{{gstRate}}}
-      - GST Amount: {{{gstAmount}}}
-      - Total Amount: {{{totalAmount}}}
-    `,
-});
-
-const generateInvoiceFlow = ai.defineFlow(
-  {
-    name: 'generateInvoiceFlow',
-    inputSchema: GenerateInvoiceInputSchema,
-    outputSchema: GenerateInvoiceOutputSchema,
-  },
-  async ({ orderId }) => {
+// Exported function that performs the invoice generation directly
+export async function generateInvoice({ orderId }: GenerateInvoiceInput): Promise<GenerateInvoiceOutput> {
     // 1. Fetch all necessary data from Firestore
     const orderRef = doc(db, 'orders', orderId);
     const orderSnap = await getDoc(orderRef);
@@ -159,7 +117,7 @@ const generateInvoiceFlow = ai.defineFlow(
     const totalAmount = subtotal + gstAmount;
     const today = new Date();
 
-    const context: z.infer<typeof PromptContextSchema> = {
+    const invoiceOutput: GenerateInvoiceOutput = {
         invoiceNumber: `INV-${format(today, 'yyyyMMdd')}-${orderId.slice(-4).toUpperCase()}`,
         invoiceDate: format(today, 'yyyy-MM-dd'),
         eventDate: orderData.date,
@@ -177,10 +135,6 @@ const generateInvoiceFlow = ai.defineFlow(
         totalAmount,
     };
 
-    // 3. Pass the fully-formed context to the AI for formatting
-    const { output } = await prompt(context);
-
-    // 4. Return the structured output from the AI
-    return output!;
-  }
-);
+    // 3. Return the fully-formed invoice object
+    return invoiceOutput;
+}

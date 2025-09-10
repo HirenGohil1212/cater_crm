@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "src/app/api/genkit/flows/generateInvoiceFlow/route.ts": {
-      "maxDuration": 60
-    }
-  }
-}
