@@ -170,8 +170,7 @@ export function InvoiceList() {
       }
 
     const canGenerateInvoice = (order: Order) => {
-        if (order.invoiceStatus === 'Generated') return false;
-        return order.status === 'Reviewed' || order.status === 'Completed';
+        return order.invoiceStatus !== 'Generated' && (order.status === 'Reviewed' || order.status === 'Completed');
     }
 
     return (
@@ -203,7 +202,7 @@ export function InvoiceList() {
                            <Button 
                              variant="outline" 
                              size="sm"
-                             disabled={isGenerating === order.id || !canGenerateInvoice(order)}
+                             disabled={isGenerating === order.id || !(canGenerateInvoice(order) || order.invoiceStatus === 'Generated')}
                              onClick={() => order.invoiceStatus === 'Generated' ? handleViewInvoice(order.id) : handleGenerateInvoice(order)}
                             >
                              {isGenerating === order.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
