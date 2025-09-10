@@ -19,7 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { db } from "@/lib/firebase";
-import { collection, collectionGroup, onSnapshot, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, collectionGroup, onSnapshot, query, where, orderBy, limit, doc, getDoc } from "firebase/firestore";
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
@@ -32,6 +32,7 @@ type Invoice = GenerateInvoiceOutput & {
 
 type Payout = {
     id: string;
+    orderId: string;
     staffName: string;
     amount: number;
     status: 'Pending' | 'Paid';
@@ -43,6 +44,13 @@ type Stats = {
     totalOut: number;
     profit: number;
 };
+
+async function getEventDateForPayout(orderId: string): Promise<string | undefined> {
+    if (!orderId) return undefined;
+    const orderDoc = await getDoc(doc(db, 'orders', orderId));
+    return orderDoc.exists() ? orderDoc.data().date : undefined;
+}
+
 
 export default function AdminReportsPage() {
     const [stats, setStats] = useState<Stats>({ totalIn: 0, totalOut: 0, profit: 0 });
@@ -66,22 +74,39 @@ export default function AdminReportsPage() {
             setStats(prev => ({ ...prev, totalIn: total, profit: total - prev.totalOut }));
         });
 
-        // Fetch all paid payouts to calculate Total Out
-        const payoutsQuery = query(collectionGroup(db, 'payouts'), where('status', '==', 'Paid'));
-        const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
+        // Fetch all payouts, then filter for 'Paid' status on the client
+        const payoutsQuery = query(collectionGroup(db, 'payouts'));
+        const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
             let total = 0;
-            const payouts: Payout[] = [];
-            snapshot.forEach(doc => {
-                const data = doc.data() as Payout;
-                total += data.amount;
-                payouts.push({ id: doc.id, ...data });
+            
+            const allPayouts = snapshot.docs
+                .filter(doc => doc.data().status === 'Paid')
+                .map(doc => ({
+                    id: doc.id,
+                    orderId: doc.ref.parent.parent!.id,
+                    ...doc.data()
+                })) as Payout[];
+            
+            const payoutPromises = allPayouts.map(async (p) => {
+                if (!p.eventDate) {
+                    p.eventDate = await getEventDateForPayout(p.orderId);
+                }
+                return p;
             });
-            // Client-side sort as we can't order by another field in a collectionGroup query with filter
-            payouts.sort((a,b) => {
+            
+            const payoutsWithDates = await Promise.all(payoutPromises);
+
+            payoutsWithDates.forEach(payout => {
+                total += payout.amount;
+            });
+
+            // Client-side sort by eventDate
+            payoutsWithDates.sort((a,b) => {
                 if(a.eventDate && b.eventDate) return new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime();
                 return 0;
             });
-            setRecentPayouts(payouts.slice(0, 10));
+
+            setRecentPayouts(payoutsWithDates.slice(0, 10));
             setStats(prev => ({ ...prev, totalOut: total, profit: prev.totalIn - total }));
             if (loading) setLoading(false);
         });
