@@ -75,6 +75,7 @@ type Order = {
 
 type Invoice = GenerateInvoiceOutput & {
     id: string;
+    firmId: string;
 };
 
 type Client = {
@@ -344,7 +345,7 @@ function ClientLedgers() {
                 description: values.description,
                 createdAt: serverTimestamp(),
             });
-            toast({ title: "Payment Recorded", description: "The payment has been added to the ledger." });
+            toast({ title: "Payment Recorded", description: "The payment has been added to the client's ledger." });
             
             // Invalidate cached ledger data to force a refetch
             setLedgerData(prev => {

@@ -39,10 +39,12 @@ type Order = {
   userName?: string;
   invoiceStatus: "Pending" | "Generated";
   createdAt: any;
+  firmId?: string;
 };
 
 type Invoice = GenerateInvoiceOutput & {
     id: string;
+    firmId: string;
 };
 
 async function getUserName(userId: string): Promise<string> {
@@ -79,7 +81,8 @@ export function InvoiceList() {
                   userId: data.userId,
                   userName: userName,
                   invoiceStatus: data.invoiceStatus || "Pending",
-                  createdAt: data.createdAt
+                  createdAt: data.createdAt,
+                  firmId: data.firmId,
               };
           });
   
@@ -101,17 +104,17 @@ export function InvoiceList() {
         try {
             const invoiceData = await generateInvoice({ orderId: order.id });
             
-            // Add client ID to invoice data before saving
-            const invoiceWithClient = {
+            const invoiceWithDetails = {
                 ...invoiceData,
-                client: { ...invoiceData.client, id: order.userId }
+                client: { ...invoiceData.client, id: order.userId },
+                firmId: order.firmId || 'default' // Add firmId to the invoice
             };
 
             const orderRef = doc(db, 'orders', order.id);
             await updateDoc(orderRef, { invoiceStatus: 'Generated' });
             
             const invoiceRef = doc(db, 'invoices', order.id);
-            await setDoc(invoiceRef, invoiceWithClient);
+            await setDoc(invoiceRef, invoiceWithDetails);
 
             toast({ title: "Invoice Generated", description: `Invoice for order ${order.id} has been created.` });
 
@@ -195,7 +198,7 @@ export function InvoiceList() {
                            <Button 
                              variant="outline" 
                              size="sm"
-                             disabled={isGenerating === order.id || order.status !== 'Reviewed'}
+                             disabled={isGenerating === order.id || (order.status !== 'Reviewed' && order.invoiceStatus !== 'Generated')}
                              onClick={() => order.invoiceStatus === 'Generated' ? handleViewInvoice(order.id) : handleGenerateInvoice(order)}
                             >
                              {isGenerating === order.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
