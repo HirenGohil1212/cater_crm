@@ -1,4 +1,5 @@
 
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Users, Calendar, DollarSign, AlertTriangle, Briefcase, FileText, MessageSquare, Settings, Shield, Building2, User } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +14,7 @@ const adminFeatures = [
     { title: "Client Management", description: "Oversee all client accounts and agreements.", icon: Briefcase, href: "/dashboard/sales" },
     { title: "Operations", description: "Assign staff to events and manage logistics.", icon: Shield, href: "/dashboard/operational-manager" },
     { title: "HR & Training", description: "Manage staff inquiries, training, and agreements.", icon: FileText, href: "/dashboard/hr" },
-    { title: "Alerts & Comms", description: "Send SMS/WhatsApp alerts to staff and clients.", icon: MessageSquare, href: "#" },
+    { title: "Alerts & Comms", description: "Send SMS/WhatsApp alerts to staff and clients.", icon: MessageSquare, href: "/dashboard/admin/alerts" },
     { title: "System Settings", description: "Configure global application settings.", icon: Settings, href: "#" },
 ];
 

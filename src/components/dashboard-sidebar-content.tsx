@@ -32,6 +32,7 @@ import {
   User,
   FileText,
   LifeBuoy,
+  MessageSquare,
 } from "lucide-react";
 import { capitalize } from "@/lib/utils";
 
@@ -75,6 +76,7 @@ const navItems: { [key: string]: { href: string, label: string, icon: React.Elem
     { href: "/dashboard/admin/billing", label: "Billing", icon: DollarSign },
     { href: "/dashboard/admin/reports", label: "Reports", icon: BarChart },
     { href: "/dashboard/admin/firms", label: "Firms", icon: Building2 },
+    { href: "/dashboard/admin/alerts", label: "Alerts", icon: MessageSquare },
   ],
 };
 
