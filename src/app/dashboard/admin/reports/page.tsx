@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import {
@@ -71,61 +72,41 @@ export default function AdminReportsPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Fetch all invoices
         const invoicesQuery = query(collection(db, "invoices"));
         const unsubInvoices = onSnapshot(invoicesQuery, (snapshot) => {
-            let totalRevenue = 0;
             const invoices: Invoice[] = [];
             snapshot.forEach(doc => {
-                const data = doc.data();
-                totalRevenue += data.totalAmount;
-                invoices.push({ id: doc.id, ...data } as Invoice);
+                invoices.push({ id: doc.id, ...doc.data() } as Invoice);
             });
             setAllInvoices(invoices);
-            setStats(prev => ({ ...prev, totalIn: totalRevenue }));
             if(!snapshot.metadata.hasPendingWrites) setLoading(false);
         }, (error) => {
             console.error("Error fetching invoices:", error);
             setLoading(false);
         });
 
-        // Fetch all paid payouts
         const payoutsQuery = query(collectionGroup(db, 'payouts'));
         const unsubPayouts = onSnapshot(payoutsQuery, async (snapshot) => {
             const paidPayoutDocs = snapshot.docs.filter(doc => doc.data().status === 'Paid');
-            let totalActualCost = 0;
-            let totalBilledAmount = 0;
+            
             const processedPayouts: Payout[] = [];
-
             for (const payoutDoc of paidPayoutDocs) {
                 const payoutData = payoutDoc.data();
-                const staffDocRef = doc(db, 'staff', payoutData.staffId);
-                const staffDocSnap = await getDoc(staffDocRef);
-                
-                let actualStaffCost = 0;
-                if (staffDocSnap.exists()) {
-                    const staffData = staffDocSnap.data() as Staff;
-                    actualStaffCost = staffData.perEventCharge || 0;
-                }
-                totalActualCost += actualStaffCost;
-                totalBilledAmount += payoutData.amount;
                 const eventDate = await getEventDateForPayout(payoutDoc.ref.parent.parent!.id);
                 processedPayouts.push({
                     id: payoutDoc.id, orderId: payoutDoc.ref.parent.parent!.id, eventDate: eventDate, ...payoutData
                 } as Payout);
             }
             
-            const netProfit = totalBilledAmount - totalActualCost;
             processedPayouts.sort((a,b) => (a.eventDate && b.eventDate) ? new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime() : 0);
             setRecentPayouts(processedPayouts.slice(0, 10));
-            setStats(prev => ({ ...prev, totalOut: totalActualCost, profit: netProfit }));
+            
             if(!snapshot.metadata.hasPendingWrites) setLoading(false);
         }, (error) => {
             console.error("Error fetching payouts:", error);
             setLoading(false);
         });
         
-        // Fetch all firms
         const firmsQuery = query(collection(db, "firms"), orderBy("companyName"));
         const unsubFirms = onSnapshot(firmsQuery, (snapshot) => {
             const firmsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Firm));
@@ -138,6 +119,46 @@ export default function AdminReportsPage() {
             unsubFirms();
         };
     }, []);
+
+    useEffect(() => {
+      const calculateStats = async () => {
+          // 1. Calculate Total Revenue (In) from all invoices
+          const totalRevenue = allInvoices.reduce((acc, invoice) => acc + invoice.totalAmount, 0);
+
+          // 2. Fetch all paid payouts
+          const payoutsQuery = query(collectionGroup(db, 'payouts'), where('status', '==', 'Paid'));
+          const paidPayoutsSnapshot = await getDocs(payoutsQuery);
+          
+          let totalBilledForStaff = 0;
+          let totalActualStaffCost = 0;
+
+          for (const payoutDoc of paidPayoutsSnapshot.docs) {
+              const payoutData = payoutDoc.data();
+              totalBilledForStaff += payoutData.amount;
+              
+              const staffDocRef = doc(db, 'staff', payoutData.staffId);
+              const staffDocSnap = await getDoc(staffDocRef);
+              if (staffDocSnap.exists()) {
+                  const staffData = staffDocSnap.data() as Staff;
+                  totalActualStaffCost += staffData.perEventCharge || 0;
+              }
+          }
+
+          // 3. Calculate Net Profit
+          const netProfit = totalBilledForStaff - totalActualStaffCost;
+
+          // 4. Update state
+          setStats({
+              totalIn: totalRevenue,
+              totalOut: totalActualStaffCost,
+              profit: netProfit,
+          });
+      };
+
+      if (!loading) {
+          calculateStats();
+      }
+  }, [allInvoices, loading]);
     
     const recentInvoices = useMemo(() => {
         return [...allInvoices].sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime()).slice(0, 10);
