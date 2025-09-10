@@ -126,10 +126,12 @@ function StaffPayouts() {
     const { toast } = useToast();
 
     useEffect(() => {
-        const payoutsQuery = query(collectionGroup(db, 'payouts'), where('status', '==', 'Pending'));
+        const payoutsQuery = query(collectionGroup(db, 'payouts'));
 
         const unsubscribe = onSnapshot(payoutsQuery, async (snapshot) => {
-            const payoutPromises = snapshot.docs.map(async (payoutDoc) => {
+            const pendingPayouts = snapshot.docs.filter(doc => doc.data().status === 'Pending');
+
+            const payoutPromises = pendingPayouts.map(async (payoutDoc) => {
                 const payoutData = payoutDoc.data();
                 const orderId = payoutDoc.ref.parent.parent!.id;
                 
